@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/inchestnov/marko/cli/sync"
 	"github.com/spf13/cobra"
 )
 
@@ -12,8 +13,19 @@ var exportCmd = &cobra.Command{
 	Use:   "export",
 	Short: "Render the desired state and write it to a static JSON file",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// TODO(go-core-agent): implement parse -> resolve -> validate -> render -> write per architecture.md §8.4, §9.6
-		return fmt.Errorf("not implemented")
+		pr, err := runPipeline()
+		if err != nil {
+			printFindingsToStderr(pr)
+			return err
+		}
+
+		n, err := sync.WriteExport(exportOut, pr.Tree)
+		if err != nil {
+			return newExitError(3, err)
+		}
+
+		fmt.Fprintf(cmd.OutOrStdout(), "Wrote %s (%d nodes)\n", exportOut, n)
+		return nil
 	},
 }
 

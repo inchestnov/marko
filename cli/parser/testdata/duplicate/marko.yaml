@@ -1,0 +1,15 @@
+version: "1"
+
+templates:
+  github:
+    folder:
+      name: GitHub
+    bookmarks:
+      - name: Documentation
+        url: "https://docs.github.com"
+
+collections:
+  work:
+    root: bar
+    templates:
+      - template: github

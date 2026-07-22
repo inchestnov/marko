@@ -1,0 +1,19 @@
+version: "1"
+
+templates:
+  profile:
+    vars:
+      username:
+        required: true
+    bookmarks:
+      - name: "{{ .username }} - Profile"
+        url: "https://github.com/{{ .username }}"
+
+collections:
+  work:
+    root: bar
+    templates:
+      - template: profile
+        vars:
+          username: octocat
+      - template: github

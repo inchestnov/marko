@@ -1,0 +1,7 @@
+version: "1"
+collections:
+  personal:
+    root: other
+    bookmarks:
+      - name: Gmail
+       url: "https://mail.google.com"

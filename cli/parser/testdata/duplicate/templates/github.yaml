@@ -1,0 +1,7 @@
+templates:
+  github:
+    folder:
+      name: GitHub Duplicate
+    bookmarks:
+      - name: Documentation
+        url: "https://docs.github.com"

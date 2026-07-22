@@ -1,0 +1,63 @@
+version: "1"
+
+variables:
+  company_domain:
+    default: company.com
+    type: string
+
+templates:
+  profile:
+    vars:
+      username:
+        required: true
+        type: string
+    bookmarks:
+      - name: "{{ .username }} - Profile"
+        url: "https://github.com/{{ .username }}"
+
+  github:
+    folder:
+      name: GitHub
+    bookmarks:
+      - name: Documentation
+        url: "https://docs.github.com"
+      - name: GitHub
+        url: "https://github.com"
+
+  repository:
+    vars:
+      username:
+        required: true
+      repo_name:
+        required: true
+      repo_org:
+        default: "{{ .username }}"
+    folder:
+      name: "{{ .repo_org }}/{{ .repo_name }}"
+    templates:
+      - template: profile
+        vars:
+          username: "{{ .username }}"
+      - template: github
+        as: "GitHub Links"
+    bookmarks:
+      - name: Repository
+        url: "https://github.com/{{ .repo_org }}/{{ .repo_name }}"
+
+collections:
+  work:
+    root: bar
+    folder:
+      name: Work
+    templates:
+      - template: repository
+        as: "marko"
+        vars:
+          username: octocat
+          repo_name: marko
+
+  personal:
+    root: other
+    bookmarks:
+      - name: Gmail
+        url: "https://mail.google.com"
