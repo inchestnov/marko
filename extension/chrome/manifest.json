@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Marko",
+  "version": "0.0.1",
+  "description": "Bookmark infrastructure as code - review and apply Marko sync plans.",
+  "permissions": ["bookmarks", "storage"],
+  "host_permissions": ["http://127.0.0.1/*"],
+  "background": {
+    "service_worker": "background/service-worker.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup/index.html"
+  },
+  "options_page": "options/index.html",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

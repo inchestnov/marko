@@ -1,0 +1,4 @@
+# Minimal example marko.yaml placeholder.
+# Filled in by the Documentation/Examples Agent.
+version: "1"
+collections: {}
