@@ -6,6 +6,67 @@ Marko turns your browser bookmarks into a declarative, versionable,
 templated YAML source of truth — and syncs that source of truth into
 Chrome.
 
+## Features
+
+- 📄 **Declarative YAML schema** — collections, folders, bookmarks,
+  variables, all in plain YAML. See
+  [`docs/yaml-reference.md`](docs/yaml-reference.md).
+- 🧩 **Template engine** — reusable, named subtrees with variables,
+  required/default values, and single inheritance (`extends`), with a
+  deliberately restricted `{{ .name }}` placeholder syntax (no loops, no
+  code execution — see [`docs/templates.md`](docs/templates.md)).
+- 🪆 **Nested templates & composition** — templates can reference other
+  templates, either flattening into the caller (mixins) or nesting as
+  sub-folders, letting you build e.g. a `repository` template out of
+  `profile` + `github`.
+- 🔍 **Diff engine** — compares your declared desired state against the
+  browser's actual state and produces a minimal, ordered plan of
+  `CREATE` / `UPDATE` / `DELETE` / `MOVE` operations, safe to compute at
+  any time (diffing is read-only).
+- 🔌 **Chrome extension sync** — a local-only HTTP bridge
+  (`marko sync`) plus a Manifest V3 extension that reviews and applies
+  the plan via `chrome.bookmarks`.
+- 📦 **Static export fallback** — `marko export` writes the desired tree to
+  a JSON file that can be imported via the extension's Options page even
+  without a running CLI session (a conservative, CREATE-only fallback).
+
+## Quick Example
+
+A minimal `marko.yaml` — a couple of bookmarks and one folder, no
+templates required (see
+[`examples/minimal/marko.yaml`](examples/minimal/marko.yaml)):
+
+```yaml
+version: "1"
+
+collections:
+  personal:
+    root: other
+    bookmarks:
+      - name: Gmail
+        url: "https://mail.google.com"
+    folders:
+      - folder:
+          name: Reading List
+        bookmarks:
+          - name: Hacker News
+            url: "https://news.ycombinator.com"
+```
+
+```
+$ marko render
+Bookmarks Bar
+Other Bookmarks
+├── Gmail
+└── Reading List
+    └── Hacker News
+```
+
+That's the whole loop: describe the structure you want, then `marko
+render` / `marko diff` / `marko sync` to preview and apply it in Chrome.
+For templates, variables, and everything else Marko can do, keep
+reading below.
+
 ## Motivation
 
 Plain browser bookmarks don't scale. Once you have more than a handful,
@@ -26,30 +87,6 @@ You describe the bookmark structure you want in a `marko.yaml` file
 and applies the changes needed to make your browser match it. The
 browser is only ever a rendering target; `marko.yaml` is authoritative,
 and nothing is ever read back into it automatically.
-
-## Features
-
-- **Declarative YAML schema** — collections, folders, bookmarks,
-  variables, all in plain YAML. See
-  [`docs/yaml-reference.md`](docs/yaml-reference.md).
-- **Template engine** — reusable, named subtrees with variables,
-  required/default values, and single inheritance (`extends`), with a
-  deliberately restricted `{{ .name }}` placeholder syntax (no loops, no
-  code execution — see [`docs/templates.md`](docs/templates.md)).
-- **Nested templates & composition** — templates can reference other
-  templates, either flattening into the caller (mixins) or nesting as
-  sub-folders, letting you build e.g. a `repository` template out of
-  `profile` + `github`.
-- **Diff engine** — compares your declared desired state against the
-  browser's actual state and produces a minimal, ordered plan of
-  `CREATE` / `UPDATE` / `DELETE` / `MOVE` operations, safe to compute at
-  any time (diffing is read-only).
-- **Chrome extension sync** — a local-only HTTP bridge
-  (`marko sync`) plus a Manifest V3 extension that reviews and applies
-  the plan via `chrome.bookmarks`.
-- **Static export fallback** — `marko export` writes the desired tree to
-  a JSON file that can be imported via the extension's Options page even
-  without a running CLI session (a conservative, CREATE-only fallback).
 
 ## Architecture
 
