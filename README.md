@@ -276,15 +276,24 @@ and apply it.
 
 - **Go (`cli/`)**: table-driven unit tests per package —
   `parser`, `template`, `validator`, `renderer`, `diff`, `sync` — plus an
-  integration test (`cli/internal/integration`) that runs
-  `examples/full/marko.yaml`-shaped fixtures through the full
+  integration test (`cli/internal/integration`) that runs a
+  `marko.yaml`-shaped fixture through the full
   parse -> resolve -> render -> diff -> simulated-apply -> re-diff
-  pipeline and asserts the final re-diff is empty (idempotency). As of
-  this writing, `go test ./...` reports 71 passing test cases; `cli/cmd`
-  has a few command-level integration tests still being finished by the
-  testing pass in progress.
-- **TypeScript (`extension/`)**: Vitest coverage for
-  `lib/bookmarksApply.ts` against a mocked `chrome.bookmarks` global.
+  pipeline and asserts the final re-diff is empty (idempotency), and a
+  black-box `cli/cmd` integration test that drives the actual Cobra
+  commands end-to-end (`init` -> `validate` -> `render` -> `export` ->
+  `diff`). `go test ./...` reports 74 passing test cases, 0 failing.
+- **TypeScript (`extension/`)**: Vitest coverage (10 tests) for
+  `lib/bookmarksApply.ts` (tree conversion, operation application,
+  placeholder-id threading, partial-failure handling) against a mocked
+  `chrome.bookmarks` global.
+
+Run everything:
+
+```bash
+(cd cli && go build ./... && go vet ./... && gofmt -l . && go test ./...)
+(cd extension && npx tsc --noEmit && npx vitest run)
+```
 
 ## Roadmap
 
@@ -315,3 +324,7 @@ future work:
   constraint, not a gap (see [`docs/templates.md`](docs/templates.md)),
   but is listed here for completeness since it's explicitly named as
   deferred/out-of-scope in the architecture doc.
+
+## License
+
+[MIT](LICENSE)

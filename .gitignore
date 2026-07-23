@@ -14,6 +14,7 @@ cli/marko-export.json
 node_modules/
 extension/dist/
 extension/dist-ssr/
+extension/coverage/
 extension/*.local
 npm-debug.log*
 yarn-debug.log*
