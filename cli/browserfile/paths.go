@@ -1,13 +1,12 @@
 // Package browserfile reads and writes a Chromium-family browser's native
-// "Bookmarks" JSON file directly, as an alternative to the HTTP+extension
-// bridge (see cli/sync and docs/sync-protocol.md): instead of a browser
-// extension calling chrome.bookmarks.*, marko sync locates the browser's
-// profile directory, parses its Bookmarks file into a bookmarktree.Tree,
-// runs it through the same diff engine used everywhere else in Marko, and
-// writes the result back to disk. This requires the browser to not be
-// actively running against that profile (see lock.go), since Chromium
-// periodically flushes its in-memory bookmark model back to this file and
-// would otherwise silently overwrite Marko's changes.
+// "Bookmarks" JSON file directly (see docs/sync-protocol.md): marko sync
+// locates the browser's profile directory, parses its Bookmarks file
+// into a bookmarktree.Tree, runs it through the same diff engine used
+// everywhere else in Marko, and writes the result back to disk. This
+// requires the browser to not be actively running against that profile
+// (see lock.go), since Chromium periodically flushes its in-memory
+// bookmark model back to this file and would otherwise silently
+// overwrite Marko's changes.
 package browserfile
 
 import (

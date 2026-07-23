@@ -90,21 +90,14 @@ func resetGlobalFlags() {
 
 	diffActual = ""
 
-	exportOut = "marko-export.json"
-
-	syncBridge = "file"
 	syncBrowser = ""
 	syncProfile = ""
 	syncBookmarksFile = ""
 	syncForce = false
 	syncPreview = false
-
-	syncPort = 8765
-	syncTimeout = "5m"
-	syncAutoOpen = false
 }
 
-func TestCLI_InitValidateRenderExportDiff_RealisticUserFlow(t *testing.T) {
+func TestCLI_InitValidateRenderDiff_RealisticUserFlow(t *testing.T) {
 	dir := t.TempDir()
 
 	// 1. marko init
@@ -164,38 +157,7 @@ func TestCLI_InitValidateRenderExportDiff_RealisticUserFlow(t *testing.T) {
 		t.Fatalf("expected 2 roots (bar, other), got %d", len(tree.Roots))
 	}
 
-	// 4. marko export --out <file> -- expect valid JSON matching the
-	// ExportFile shape (§8.4): formatVersion, generatedAt, markoVersion,
-	// desiredTree.
-	exportPath := filepath.Join(dir, "snapshot.json")
-	stdout, stderr, code = runCmd(t, dir, "export", "--out", exportPath)
-	if code != 0 {
-		t.Fatalf("marko export: expected exit 0, got %d (stderr: %s)", code, stderr)
-	}
-	if !strings.Contains(stdout, "Wrote") {
-		t.Fatalf("marko export: expected 'Wrote ...' in stdout, got %q", stdout)
-	}
-	exportData, err := os.ReadFile(exportPath)
-	if err != nil {
-		t.Fatalf("expected export file to exist: %v", err)
-	}
-	var export struct {
-		FormatVersion string                     `json:"formatVersion"`
-		GeneratedAt   string                     `json:"generatedAt"`
-		MarkoVersion  string                     `json:"markoVersion"`
-		DesiredTree   *bookmarktree.BookmarkTree `json:"desiredTree"`
-	}
-	if err := json.Unmarshal(exportData, &export); err != nil {
-		t.Fatalf("export file is not valid ExportFile JSON: %v", err)
-	}
-	if export.FormatVersion == "" || export.GeneratedAt == "" || export.MarkoVersion == "" {
-		t.Fatalf("expected all ExportFile top-level fields populated, got %+v", export)
-	}
-	if export.DesiredTree == nil || len(export.DesiredTree.Roots) != 2 {
-		t.Fatalf("expected desiredTree with 2 roots in export file, got %+v", export.DesiredTree)
-	}
-
-	// 5. marko diff --actual <empty tree file> -- expect CREATE operations
+	// 4. marko diff --actual <empty tree file> -- expect CREATE operations
 	// (an empty browser has nothing matching the scaffolded "Example"
 	// bookmark, so it must be CREATEd).
 	emptyActual := bookmarktree.BookmarkTree{

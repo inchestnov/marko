@@ -125,12 +125,10 @@ func convertRawNode(raw map[string]interface{}, name string, parentPath []string
 // Apply mutates the parsed file in place to reflect plan (as computed by
 // diff.Diff against the tree returned by ToBookmarkTree), assigning new
 // ids/guids/timestamps to CREATEd nodes and threading newly-created
-// folder ids forward for their own children, exactly like
-// extension/src/lib/bookmarksApply.ts does for the browser-extension
-// bridge -- the same resolution rule (root prefix -> real root id,
-// else look up this pass's own just-created ids, else trust the
-// operation's ParentBrowserID) applies here since diff.Diff's output
-// contract is identical regardless of how "actual" was obtained.
+// folder ids forward for their own children -- see resolveParentID: root
+// prefix resolves to the real root id, a not-yet-created parent resolves
+// via this pass's own createdIDs map, else the operation's own
+// ParentBrowserID (a pre-existing node) is trusted.
 func (f *File) Apply(plan *diff.Plan) error {
 	nodesByID := map[string]map[string]interface{}{}
 	parentByID := map[string]map[string]interface{}{}
@@ -256,11 +254,11 @@ func (f *File) backupOriginal() error {
 	return nil
 }
 
-// resolveParentID mirrors extension/src/lib/bookmarksApply.ts's
-// resolveParentBrowserId: a root-level parent path resolves to the real
-// root id read from the file; a not-yet-created parent (created earlier
-// in this same Apply pass) resolves via createdIDs; anything else trusts
-// the operation's own ParentBrowserID (a pre-existing node).
+// resolveParentID resolves an Operation's real parent id: a root-level
+// parent path resolves to the real root id read from the file; a
+// not-yet-created parent (created earlier in this same Apply pass)
+// resolves via createdIDs; anything else trusts the operation's own
+// ParentBrowserID (a pre-existing node).
 func resolveParentID(op diff.Operation, rootID map[string]string, createdIDs map[string]string) string {
 	parentPath := op.TargetPath[:len(op.TargetPath)-1]
 	if len(parentPath) == 1 {

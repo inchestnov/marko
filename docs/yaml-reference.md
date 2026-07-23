@@ -316,8 +316,8 @@ with the same default name before `as:` disambiguates them.
 - [`docs/templates.md`](./templates.md) — template authoring guide:
   variables, nesting, composition, inheritance, the restricted
   placeholder syntax.
-- [`docs/sync-protocol.md`](./sync-protocol.md) — the `marko sync` HTTP
-  bridge and `marko export` file format.
+- [`docs/sync-protocol.md`](./sync-protocol.md) — how `marko sync` reads
+  and writes the browser's Bookmarks file directly.
 - [`docs/architecture.md`](./architecture.md) — the full binding
   technical contract (validation rules, render/diff algorithms).
 - [`examples/minimal/marko.yaml`](../examples/minimal/marko.yaml),

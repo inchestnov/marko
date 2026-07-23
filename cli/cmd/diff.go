@@ -18,7 +18,7 @@ var diffCmd = &cobra.Command{
 	Short: "Compare the desired state against a captured browser state and print an operation plan",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if diffActual == "" {
-			return newExitError(1, fmt.Errorf("--actual <file> is required; marko cannot read the browser directly (no native messaging). Run \"marko sync\" instead, or capture browser state to a file via the extension's Options page and pass it with --actual"))
+			return newExitError(1, fmt.Errorf("--actual <file> is required; marko diff does not read the browser itself. Run \"marko sync --preview\" instead to compute the same plan directly from the browser's Bookmarks file, or pass a previously-captured actualTree JSON with --actual"))
 		}
 
 		pr, err := runPipeline()

@@ -93,9 +93,10 @@ func TestFullPipeline_ParseResolveRenderDiffApplyIdempotent(t *testing.T) {
 	}
 	assertParentBeforeChild(t, plan)
 
-	// 5. Simulate "apply": a small in-memory fake of chrome.bookmarks
-	// applies the Plan op-by-op; assert the resulting tree structurally
-	// equals the desired tree (ignoring BrowserID/Index bookkeeping).
+	// 5. Simulate "apply": a small in-memory fake of the mutation target
+	// (the same shape cli/browserfile mutates for real) applies the Plan
+	// op-by-op; assert the resulting tree structurally equals the desired
+	// tree (ignoring BrowserID/Index bookkeeping).
 	synced := applyPlan(t, actual, plan)
 	assertStructurallyEqual(t, desired, synced)
 
@@ -165,11 +166,11 @@ func pathKey(path []string) string {
 	return key
 }
 
-// applyPlan is a minimal in-memory fake of chrome.bookmarks, applying
-// Operations sequentially against a mutable copy of actual, in the same
-// forward-pass style the real extension uses (tracking newly created
-// folder ids by TargetPath so subsequent MOVE/CREATE ops can reference
-// them).
+// applyPlan is a minimal in-memory fake of the real mutation target,
+// applying Operations sequentially against a mutable copy of actual, in
+// the same forward-pass style cli/browserfile uses for real (tracking
+// newly created folder ids by TargetPath so subsequent MOVE/CREATE ops
+// can reference them).
 func applyPlan(t *testing.T, actual *bookmarktree.BookmarkTree, plan *diff.Plan) *bookmarktree.BookmarkTree {
 	t.Helper()
 	tree := actual.Clone()

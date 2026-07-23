@@ -20,9 +20,9 @@ const (
 	OpMove   OpType = "MOVE"
 )
 
-// Operation is one atomic, idempotent action for the extension to apply
-// via chrome.bookmarks. Fields are populated according to Type; see
-// docs/architecture.md §7 for the full field table.
+// Operation is one atomic, idempotent action for browserfile to apply to
+// the browser's Bookmarks file. Fields are populated according to Type;
+// see docs/architecture.md §7 for the full field table.
 type Operation struct {
 	Type OpType `json:"type"`
 
@@ -39,8 +39,8 @@ type Operation struct {
 	Name string `json:"name"`
 	URL  string `json:"url,omitempty"`
 
-	// BrowserID: the actual chrome.bookmarks node id this op targets.
-	// Empty for CREATE (does not exist yet).
+	// BrowserID: the actual bookmark node id (as found in the browser's
+	// Bookmarks file) this op targets. Empty for CREATE (does not exist yet).
 	BrowserID string `json:"browserId,omitempty"`
 
 	// ParentBrowserID: id of the parent folder this node should end up
@@ -49,8 +49,8 @@ type Operation struct {
 	ParentBrowserID string `json:"parentBrowserId,omitempty"`
 
 	// Position: desired 0-based index among new siblings, set for
-	// CREATE and MOVE so the extension can call chrome.bookmarks.move /
-	// .create with an explicit `index`.
+	// CREATE and MOVE so browserfile can insert the node at the right
+	// index among its new siblings.
 	Position int `json:"position"`
 
 	// Changes lists which fields differ, for UPDATE only: subset of
@@ -127,7 +127,7 @@ func nativeRootID(rootName string) string {
 // pairs are children of; parentBrowserID is the actual browser id new
 // children should be created/moved under (may be empty for CREATE
 // parents, which is fine since Position/TargetPath fully disambiguate
-// and the extension resolves it via its TargetPath map at apply time).
+// and browserfile resolves it via its own TargetPath map at apply time).
 func walkPairs(pairs []*pairing, parentPath []string, parentBrowserID string) (creates, deletes, moves, updates []Operation) {
 	// Determine desired final child order (only pairs with a Desired
 	// side, in the order matchChildren already emitted them — which

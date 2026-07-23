@@ -3,7 +3,8 @@
 **Bookmark infrastructure as code.** Describe your browser bookmarks
 (folders, links, reusable templates, variables) in a `marko.yaml` file;
 Marko renders it, diffs it against your browser's actual bookmarks, and
-writes the result — no browser extension required by default.
+writes the result directly to its `Bookmarks` file — no browser
+extension involved.
 
 - Full reference: [`docs/architecture.md`](docs/architecture.md)
 - YAML schema: [`docs/yaml-reference.md`](docs/yaml-reference.md)
@@ -18,12 +19,7 @@ cd cli
 go build -o marko .        # or: go install .
 ```
 
-Extension (only needed for `marko sync --bridge=http`):
-
-```bash
-cd extension && npm install && npm run build
-```
-Then `chrome://extensions` → Developer mode → Load unpacked → `extension/dist`.
+That's all you need.
 
 ## Commands
 
@@ -46,47 +42,33 @@ Runs the full pipeline (parse → resolve templates → validate → render) and
 | `--out` | stdout | Write output to a file instead of stdout |
 
 ### `marko diff`
-Compares the desired state against a previously-captured browser state and prints an operation plan (`CREATE`/`UPDATE`/`DELETE`/`MOVE`). Read-only.
+Compares the desired state against a previously-captured browser state and prints an operation plan (`CREATE`/`UPDATE`/`DELETE`/`MOVE`). Read-only; never touches the browser.
 
 | Flag | Default | Description |
 |---|---|---|
 | `--actual` | — | Path to a captured `actualTree` JSON file (required) |
 
-### `marko export`
-Renders the desired state to a static JSON file, for offline/no-CLI-session import via the extension's Options page.
-
-| Flag | Default | Description |
-|---|---|---|
-| `--out` | `marko-export.json` | Output file path |
-
 ### `marko sync`
-The main command: diffs the desired state against your browser and imports it. Two mechanisms, selected with `--bridge`:
-
-- **`--bridge=file` (default)** — reads and writes the target browser's native `Bookmarks` file directly. No extension, no server.
-- **`--bridge=http` (legacy)** — starts a local HTTP server and opens a Chrome extension page that applies the plan via `chrome.bookmarks`.
+The main command: diffs the desired state against your browser and imports it, by reading and writing the target browser's native `Bookmarks` file directly.
 
 ```bash
 marko sync --config marko.yaml --preview   # show the plan, change nothing
 marko sync --config marko.yaml             # apply it
 ```
 
-| Flag | Default | Applies to | Description |
-|---|---|---|---|
-| `--bridge` | `file` | both | `file` or `http` |
-| `--preview` | off | both | Compute and print the plan without changing anything (dry run) |
-| `--browser` | `brave` | `file` | `brave`, `chrome`, `chromium`, or `edge` |
-| `--profile` | `Default` | `file` | Browser profile directory name |
-| `--bookmarks-file` | — | `file` | Explicit path to a `Bookmarks` file, overrides `--browser`/`--profile` |
-| `--force` | off | `file` | Write even if the browser looks like it's currently running for that profile (prints a warning instead of refusing) |
-| `--port` | `8765` | `http` | Port for the local HTTP server |
-| `--timeout` | `5m` | `http` | Give up waiting for the extension after this long (`0` = never) |
-| `--auto-open` | on | `http` | Automatically open the extension's sync page |
+| Flag | Default | Description |
+|---|---|---|
+| `--preview` | off | Compute and print the plan without changing anything (dry run) |
+| `--browser` | `brave` | `brave`, `chrome`, `chromium`, or `edge` |
+| `--profile` | `Default` | Browser profile directory name |
+| `--bookmarks-file` | — | Explicit path to a `Bookmarks` file, overrides `--browser`/`--profile` |
+| `--force` | off | Write even if the browser looks like it's currently running for that profile (prints a warning instead of refusing) |
 
-By default (`--bridge=file`), the target browser must be closed — it
-periodically flushes its own bookmark state back to disk and would
-otherwise overwrite Marko's change. A timestamped backup of the previous
-file is always written alongside it before anything is changed. Pass
-`--force` to write anyway; a warning is printed instead of refusing.
+The target browser must be closed — it periodically flushes its own
+bookmark state back to disk and would otherwise overwrite Marko's
+change. A timestamped backup of the previous file is always written
+alongside it before anything is changed. Pass `--force` to write anyway;
+a warning is printed instead of refusing.
 
 ## Global flags
 
@@ -98,8 +80,7 @@ applicable), `-v/--verbose`.
 ## Development
 
 ```bash
-(cd cli && go build ./... && go vet ./... && gofmt -l . && go test ./...)
-(cd extension && npx tsc --noEmit && npx vitest run)
+cd cli && go build ./... && go vet ./... && gofmt -l . && go test ./...
 ```
 
 ## License

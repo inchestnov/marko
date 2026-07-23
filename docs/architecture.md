@@ -18,11 +18,12 @@ The Marko CLI (Go):
 3. Renders the expanded configuration into an in-memory `BookmarkTree`
    (the **Desired State**).
 4. Compares the Desired State against the actual browser bookmark tree (the
-   **Browser State**, obtained from the Chrome extension) and produces an
-   ordered `Plan` of `Operation`s (`CREATE`, `UPDATE`, `DELETE`, `MOVE`).
-5. Delivers that plan to a Chrome extension over a local-only HTTP API, or
-   via a static exported JSON file, so the extension can apply it through
-   `chrome.bookmarks`.
+   **Browser State**, read directly from the target browser's own
+   `Bookmarks` file) and produces an ordered `Plan` of `Operation`s
+   (`CREATE`, `UPDATE`, `DELETE`, `MOVE`).
+5. Applies that plan by writing the result back to the browser's
+   `Bookmarks` file directly, or via a static exported JSON file for
+   offline inspection.
 
 The browser is only a rendering target. `marko.yaml` is authoritative.
 Nothing is ever read back into `marko.yaml` automatically; sync is one-way
@@ -30,8 +31,13 @@ Nothing is ever read back into `marko.yaml` automatically; sync is one-way
 
 Design principles:
 
-- No native messaging host installation. The bridge between CLI and browser
-  is a local HTTP server bound to `127.0.0.1`, polled by the extension.
+- No browser extension, no native messaging host, no local server. `marko
+  sync` reads and writes the target browser's native `Bookmarks` file
+  directly (see `cli/browserfile` and `docs/sync-protocol.md`) — an
+  earlier iteration drove a Chrome extension over a local HTTP bridge
+  instead, but that approach was dropped after real-world testing
+  surfaced problems inherent to going through a browser extension at all
+  (see `docs/sync-protocol.md` for what those were).
 - The template engine is a pure data-substitution engine: variables,
   nesting, composition, and inheritance are allowed; code execution, shell,
   JS, Python, and loops are explicitly forbidden.
@@ -52,8 +58,7 @@ marko/
 │   │   ├── validate.go
 │   │   ├── render.go
 │   │   ├── diff.go
-│   │   ├── sync.go
-│   │   └── export.go
+│   │   └── sync.go
 │   ├── internal/
 │   │   ├── model/               # Shared data model structs (Config, Collection, Template, ...)
 │   │   │   └── model.go
@@ -80,43 +85,14 @@ marko/
 │   │   ├── diff.go
 │   │   ├── match.go
 │   │   └── diff_test.go
-│   ├── sync/                      # Local HTTP server + protocol types + export writer
-│   │   ├── server.go
-│   │   ├── protocol.go
-│   │   ├── export.go
-│   │   └── sync_test.go
+│   ├── browserfile/               # Reads/writes a Chromium-family browser's Bookmarks file directly
+│   │   ├── paths.go               # Locates the file per browser/profile/OS
+│   │   ├── lock.go                # Detects whether the browser is running (SingletonLock)
+│   │   ├── file.go                # Parse / ToBookmarkTree / Apply(diff.Plan) / Write
+│   │   └── file_test.go
 │   ├── go.mod
 │   ├── go.sum
 │   └── main.go
-├── extension/
-│   ├── chrome/
-│   │   ├── manifest.json
-│   │   └── icons/
-│   └── src/
-│       ├── background/
-│       │   └── service-worker.ts
-│       ├── popup/
-│       │   ├── Popup.tsx
-│       │   ├── main.tsx
-│       │   └── index.html
-│       ├── options/
-│       │   ├── Options.tsx
-│       │   ├── main.tsx
-│       │   └── index.html
-│       ├── lib/
-│       │   ├── api.ts            # fetch wrappers for /plan, /report
-│       │   ├── bookmarksApply.ts # applies Operations via chrome.bookmarks
-│       │   ├── types.ts          # TS mirror of Go protocol.go JSON shapes
-│       │   └── importExport.ts   # applies a static export JSON file
-│       ├── components/
-│       │   ├── DiffView.tsx
-│       │   ├── OperationRow.tsx
-│       │   └── ConnectionStatus.tsx
-│       └── vite-env.d.ts
-│   ├── package.json
-│   ├── tsconfig.json
-│   ├── vite.config.ts
-│   └── vite.config.background.ts
 ├── templates/                     # Shared/example reusable template library (see §3)
 │   ├── profile.yaml
 │   ├── github.yaml
@@ -144,8 +120,7 @@ Module boundary rules (must be enforced by import direction, no cycles):
 - `renderer` depends only on `internal/model`, `template`, and
   `internal/bookmarktree`.
 - `diff` depends only on `internal/bookmarktree`.
-- `sync` depends on `internal/bookmarktree`, `diff`, and `renderer` outputs,
-  but never the reverse.
+- `browserfile` depends only on `internal/bookmarktree` and `diff`.
 - `cmd/*` is the only package allowed to wire everything together and talk
   to the filesystem/stdout directly.
 
@@ -720,9 +695,10 @@ part of node identity/matching.
 
 Implemented in `cli/diff/diff.go` and `match.go`. Input: two
 `*bookmarktree.BookmarkTree` values — `desired` (from the renderer) and
-`actual` (from the browser, delivered by the extension as JSON matching
-the same `BookmarkTree` shape, with `BrowserID` populated on every node).
-Output: `Plan` — an ordered `[]Operation`.
+`actual` (read from the browser's Bookmarks file by `cli/browserfile`,
+with `BrowserID` populated on every node from the file's real `id`
+fields). Output: `Plan` — an ordered `[]Operation`. The engine itself has
+no notion of where `actual` came from; it just diffs two trees.
 
 ```go
 package diff
@@ -736,9 +712,9 @@ const (
 	OpMove   OpType = "MOVE"
 )
 
-// Operation is one atomic, idempotent action for the extension to apply
-// via chrome.bookmarks. Fields are populated according to Type; see the
-// table below.
+// Operation is one atomic, idempotent action for browserfile to apply to
+// the browser's Bookmarks file. Fields are populated according to Type;
+// see the table below.
 type Operation struct {
 	Type OpType `json:"type"`
 
@@ -755,8 +731,8 @@ type Operation struct {
 	Name string `json:"name"`
 	URL  string `json:"url,omitempty"`
 
-	// BrowserID: the actual chrome.bookmarks node id this op targets.
-	// Empty for CREATE (does not exist yet).
+	// BrowserID: the actual bookmark node id (as found in the browser's
+	// Bookmarks file) this op targets. Empty for CREATE (does not exist yet).
 	BrowserID string `json:"browserId,omitempty"`
 
 	// ParentBrowserID: id of the parent folder this node should end up
@@ -765,8 +741,8 @@ type Operation struct {
 	ParentBrowserID string `json:"parentBrowserId,omitempty"`
 
 	// Position: desired 0-based index among new siblings, set for
-	// CREATE and MOVE so the extension can call chrome.bookmarks.move /
-	// .create with an explicit `index`.
+	// CREATE and MOVE so browserfile can insert the node at the right
+	// index among its new siblings.
 	Position int `json:"position"`
 
 	// Changes lists which fields differ, for UPDATE only: subset of
@@ -829,8 +805,8 @@ descendants):
      or its actual `Index` among siblings-after-this-plan-applies would
      differ from `desired.Index` -> `MOVE` (see 7.2; `MOVE` and `UPDATE`
      are not mutually exclusive — a node can need both; emit them as two
-     separate `Operation`s in the plan, `MOVE` first, so the extension
-     always resolves parentage before renaming).
+     separate `Operation`s in the plan, `MOVE` first, so the code applying
+     the plan always resolves parentage before renaming).
 5. Unmatched desired folders that are `CREATE`d are recursed into
    immediately (their children can only be `CREATE`, never matched to
    anything in `actual`, since the parent itself doesn't exist yet).
@@ -869,174 +845,101 @@ sequentially, top-down:
 4. Then all `UPDATE`s (renames are safe last since they don't affect
    parentage).
 
-This ordering guarantees the extension can apply operations strictly in
-array order with a single forward pass and never reference a
-`ParentBrowserID` that doesn't exist yet (newly created folders' real
-Chrome-assigned IDs are threaded forward at apply-time in the extension —
-see §8.2, the extension substitutes real IDs as it goes using a
-local map keyed by `TargetPath`, since the CLI cannot know real Chrome
-IDs for not-yet-created nodes in advance).
+This ordering guarantees the plan can be applied strictly in array order
+with a single forward pass and never reference a `ParentBrowserID` that
+doesn't exist yet (newly created folders' real ids are threaded forward
+at apply-time — see §8.4, `browserfile` substitutes real ids as it goes
+using a local map keyed by `TargetPath`, since the CLI cannot know real
+ids for not-yet-created nodes in advance).
 
-## 8. Browser Bridge / Sync Protocol
+## 8. Browser Bridge: direct Bookmarks file access
 
-### 8.1 Transport
+`marko sync` (`cli/browserfile`) reads and writes the target browser's
+native `Bookmarks` file directly. There is no browser extension, no
+local server, and no wire protocol — the "bridge" is filesystem I/O.
+(An earlier iteration drove a Chrome extension over a local HTTP bridge
+instead; it was removed after real-world testing found problems
+inherent to going through a browser extension at all — see
+`docs/sync-protocol.md`'s introduction for what those were. Nothing in
+the current codebase depends on it.)
 
-`marko sync` starts a plain HTTP (not HTTPS) server bound explicitly to
-`127.0.0.1` (never `0.0.0.0`), default port `8765`, overridable with
-`--port`. Binding to loopback-only is a hard requirement — the server
-MUST call `net.Listen("tcp", "127.0.0.1:<port>")` (never `":<port>"`) so
-it is unreachable from other machines on the network. No authentication
-token is used in v1 (loopback-only is considered sufficient given no
-sensitive data beyond the user's own already-locally-readable bookmark
-titles/URLs is transmitted); this is documented as a known limitation
-(§12).
+### 8.1 Locating the file
 
-CORS: the server sets `Access-Control-Allow-Origin:
-chrome-extension://<EXTENSION_ID>` — but since the extension ID is not
-known to the CLI ahead of time (varies per install / not published to a
-fixed ID for unpacked/dev installs), the server instead sets
-`Access-Control-Allow-Origin: *` restricted to only the specific `GET
-/plan` and `POST /report` routes, and does not set
-`Access-Control-Allow-Credentials`. Because the server binds only to
-loopback and serves no cookies/session state, wildcard CORS here does not
-expose anything beyond what's already local-only readable.
+`--bookmarks-file <path>` if given; otherwise `--browser <name>` (one of
+`brave` (default), `chrome`, `chromium`, `edge`) + `--profile <name>`
+(default `Default`), resolved to the OS-appropriate path (e.g. on macOS,
+`~/Library/Application Support/BraveSoftware/Brave-Browser/<profile>/Bookmarks`
+for Brave; see `cli/browserfile/paths.go` for the full per-OS table).
 
-### 8.2 Endpoints
+### 8.2 Safety: is the browser running?
 
-**`GET /health`**
-Response `200 OK`, `application/json`:
-```json
-{ "status": "ok", "markoVersion": "1.0.0" }
-```
-Used by the extension's popup to show connection status before fetching a plan.
+Chromium creates a `SingletonLock` file/symlink in its top-level
+user-data directory (the parent of the profile directory) while running,
+and removes it on clean shutdown. `marko sync` checks for this
+(`browserfile.IsBrowserRunning`) and refuses to proceed unless `--force`
+is passed, since Chromium periodically flushes its in-memory bookmark
+model back to this file and would otherwise silently overwrite Marko's
+change. With `--force`, a warning is printed to stderr and the write
+proceeds anyway.
 
-**`GET /plan`**
-Triggers the CLI to (re-)run parse -> resolve -> validate -> render.
-Requires `actualTree` NOT be known yet by the CLI (the CLI has no
-independent way to read Chrome's bookmarks — only the extension can) —
-so `GET /plan` returns the **desired tree only**, not a diff:
+### 8.3 Reading
 
-Response `200 OK`:
-```json
-{
-  "generatedAt": "2026-07-22T10:00:00Z",
-  "markoVersion": "1.0.0",
-  "desiredTree": { "...": "bookmarktree.BookmarkTree JSON, see §6" }
-}
-```
-Response `500 Internal Server Error` on validation failure:
-```json
-{ "error": { "code": "E_MISSING_VARIABLE", "message": "..." } }
-```
+The file is parsed into a generic `map[string]interface{}` tree (not a
+fixed struct), so every field Marko doesn't explicitly model — Brave's
+`meta_info`, `date_last_used`, the entire `synced`/mobile-bookmarks root,
+future additions — survives a read-modify-write round trip completely
+untouched. `File.ToBookmarkTree()` converts the `bookmark_bar`/`other`
+roots into a `bookmarktree.BookmarkTree` (the "actual" state), reading
+each root's real `id` field directly from the file — **never** assuming
+a fixed value like `"1"`/`"2"`, since real-world profiles have been
+observed with `"other"` at a different id (e.g. `"3"`).
 
-**`POST /diff`**
-Body (from extension, containing the actual browser tree it just read
-via `chrome.bookmarks.getTree()`, converted to the same JSON shape):
-```json
-{ "actualTree": { "...": "bookmarktree.BookmarkTree JSON" } }
-```
-The CLI runs the diff engine (§7) against its already-rendered desired
-tree (re-rendering fresh each call, so `marko.yaml` edits are picked up
-live without restarting `marko sync`) and returns:
+### 8.4 Diffing and applying
 
-Response `200 OK`:
-```json
-{
-  "generatedAt": "2026-07-22T10:00:05Z",
-  "operations": [
-    {
-      "type": "CREATE",
-      "targetPath": ["bar", "Work", "Kubernetes"],
-      "kind": "folder",
-      "name": "Kubernetes",
-      "position": 0,
-      "parentBrowserId": "42"
-    }
-  ]
-}
-```
+The resulting `BookmarkTree` is diffed against the rendered desired
+state using the exact same `diff.Diff` engine as every other Marko
+command (§7) — its contract is just "two `BookmarkTree` values in, a
+`Plan` out," so it has no idea whether "actual" came from a browser
+extension or a parsed file. Unless `--preview`, `File.Apply(plan)`
+mutates the parsed structure in place:
 
-**`POST /report`**
-Body (from extension, after attempting to apply operations returned by
-`/diff`):
-```json
-{
-  "results": [
-    { "targetPath": ["bar", "Work", "Kubernetes"], "type": "CREATE", "status": "ok", "browserId": "137" },
-    { "targetPath": ["bar", "Work", "Company Wiki"], "type": "UPDATE", "status": "error", "error": "chrome.bookmarks.update failed: ..." }
-  ]
-}
-```
-Response `200 OK`:
-```json
-{ "accepted": true, "okCount": 1, "errorCount": 1 }
-```
-`marko sync` prints a human-readable summary of the report to stdout and
-then exits (single-shot sync session; see §9.5) with exit code `0` if
-`errorCount == 0`, else `1`.
+- **CREATE**: assigns a fresh sequential id (one past the largest id
+  found anywhere in the file, including the untouched `synced` root,
+  so ids can never collide), a random v4 GUID, and a WebKit-epoch
+  timestamp (microseconds since 1601-01-01, Chromium's convention).
+  Not-yet-created parent folders are resolved via a `targetPath ->
+  id` map built up within the same `Apply` pass, exactly like the
+  now-removed extension bridge's `resolveParentBrowserId` did.
+- **DELETE**: removes the node (and, since JSON nesting already implies
+  the whole subtree, everything under it) from its parent's `children`.
+- **MOVE**: removes the node from its old parent's `children` and
+  inserts it into the new parent's at the operation's `Position`.
+- **UPDATE**: overwrites `name`/`url` per the operation's `Changes`.
 
-**`POST /shutdown`** (optional, convenience)
-Extension may call this after a successful `/report` to tell the CLI's
-one-shot server it can stop listening; `marko sync` also has its own
-`--timeout` (default `5m`) after which it shuts down regardless.
+### 8.5 Writing
 
-### 8.3 Sequence
+`File.Write` recomputes the top-level `checksum` field (a best-effort
+MD5 over each node's id/name(/url), depth-first across `bookmark_bar`,
+`other`, `synced`) — confirmed during development to not be strictly
+enforced by Chromium-family browsers on load, so an exact match to
+Chromium's own algorithm is not load-bearing — then backs up the
+original file's current on-disk content to
+`<path>.marko-backup-<unix-timestamp>` and writes the new content to a
+temp file in the same directory, `fsync`ed and renamed over the
+original (atomic on POSIX).
 
 ```
-marko sync (starts HTTP server, prints URL + waits)
-   |
-   v
-User opens extension popup -> clicks "Connect"
-   |
-   v
-Extension: GET http://127.0.0.1:8765/health
-   |
-   v
-Extension: GET http://127.0.0.1:8765/plan        -> desiredTree
-Extension: chrome.bookmarks.getTree()             -> actualTree (local)
-Extension: POST http://127.0.0.1:8765/diff { actualTree } -> operations[]
-   |
-   v
-Extension renders DiffView (§10), user clicks "Apply"
-   |
-   v
-Extension applies operations[] in array order via chrome.bookmarks.*,
-   substituting real browserId for any parentBrowserId that was a
-   just-created placeholder (tracked in a local Map<TargetPath, browserId>)
-   |
-   v
-Extension: POST http://127.0.0.1:8765/report { results }
-   |
-   v
-marko sync prints summary, exits
+$ marko sync --config marko.yaml
+Bookmarks file: /Users/you/Library/Application Support/BraveSoftware/Brave-Browser/Default/Bookmarks
+
+Computed plan (3 operation(s)):
+CREATE  folder    other/Work/Kubernetes
+CREATE  bookmark  other/Work/Kubernetes/Documentation
+UPDATE  bookmark  other/Work/Company Wiki  (url changed)
+
+Wrote 3 operation(s) to .../Bookmarks (a backup of the previous content was saved alongside it).
+Restart the browser (if it was already closed, just open it) to see the change.
 ```
-
-### 8.4 `marko export` JSON Format
-
-`marko export` performs parse -> resolve -> validate -> render exactly
-like `/plan`, but writes the result to a file instead of serving it, for
-offline/no-running-CLI import:
-
-```json
-{
-  "formatVersion": "1",
-  "generatedAt": "2026-07-22T10:00:00Z",
-  "markoVersion": "1.0.0",
-  "desiredTree": { "...": "bookmarktree.BookmarkTree JSON" }
-}
-```
-
-This file is opened via the extension's Options page ("Import from
-file"), which loads it, runs `chrome.bookmarks.getTree()` locally, and
-applies a conservative fallback: the extension bundles no diff engine of
-its own; for the file-import fallback, it only supports a simpler
-**CREATE-only, skip-existing** mode: it walks `desiredTree` and, for each
-node without a match by exact `(Kind, Name)` (and `URL` for bookmarks)
-found via a local recursive scan of `actualTree`, creates it; it never
-deletes or moves in file-import mode. This is intentionally a reduced,
-conservative fallback (documented in `docs/sync-protocol.md`) — full
-`CREATE/UPDATE/DELETE/MOVE` diffing is only available via the live `marko
-sync` HTTP flow where the Go diff engine does the matching.
 
 ## 9. CLI Command Specs
 
@@ -1103,13 +1006,12 @@ Bookmarks Bar
 Exit `1` if validation fails first (render always validates internally).
 
 ### 9.4 `marko diff`
-Requires a way to obtain the actual browser tree without a running
-extension session for CLI-only usage: `--actual <file>` accepts a
-previously-exported `actualTree` JSON (e.g. captured by the extension via
-an "Export current browser state" button in Options, a small JSON dump
-using the same `bookmarktree.BookmarkTree` shape). Without `--actual`,
-`marko diff` prints an error directing the user to `marko sync` (it
-cannot reach the browser on its own — no native messaging).
+A read-only preview: `--actual <file>` accepts a previously-captured
+`actualTree` JSON (the same `bookmarktree.BookmarkTree` shape used
+everywhere else) and diffs it against the desired state without writing
+anything. `--actual` is required — `marko diff` never reads the browser
+itself; `marko sync --preview` is the more convenient way to see this
+same plan computed directly from the browser's real `Bookmarks` file.
 
 ```
 $ marko diff --actual browser-state.json
@@ -1123,21 +1025,20 @@ non-empty (a non-empty diff is not an error); exit `1` only on
 validation/parse errors reading `--actual` or `marko.yaml`.
 
 ### 9.5 `marko sync`
-Selects one of two bridges via `--bridge` (default `file`) — see
-`docs/sync-protocol.md` for the full reference on both.
-
-**`--bridge=file` (default).** Reads and writes the target browser's
-native `Bookmarks` file directly (`cli/browserfile`) — no extension, no
-HTTP server. Flags: `--browser <name>` (default `brave`; also `chrome`,
-`chromium`, `edge`), `--profile <name>` (default `Default`),
-`--bookmarks-file <path>` (explicit override, skips `--browser`/
-`--profile` lookup), `--force` (write even if the browser looks like
-it's running for that profile), `--preview` (compute and log the plan
+Reads and writes the target browser's native `Bookmarks` file directly
+(`cli/browserfile`, §8) — no extension, no server. Flags: `--browser
+<name>` (default `brave`; also `chrome`, `chromium`, `edge`), `--profile
+<name>` (default `Default`), `--bookmarks-file <path>` (explicit
+override, skips `--browser`/`--profile` lookup), `--force` (write even
+if the browser looks like it's running for that profile; prints a
+warning instead of refusing), `--preview` (compute and log the plan
 without writing). The browser must be closed (or `--force` passed) since
 Chromium periodically flushes its own in-memory bookmark state back to
 this file, which would silently overwrite Marko's changes otherwise. A
 timestamped backup of the previous file content is always written
-alongside it before any change.
+alongside it before any change, and the full computed plan is always
+logged before anything is written — "what was imported, what was
+deleted," not just a summary count.
 
 ```
 $ marko sync --config marko.yaml
@@ -1152,109 +1053,9 @@ Wrote 3 operation(s) to .../Bookmarks (a backup of the previous content was save
 Restart the browser (if it was already closed, just open it) to see the change.
 ```
 
-**`--bridge=http` (legacy).** Starts the local HTTP server (§8) and, by
-default, opens the extension's dedicated auto-sync page
-(`chrome-extension://<ExtensionID>/sync/index.html`, distinct from the
-popup), which runs the whole connect -> diff -> apply -> report sequence
-automatically on load. Flags: `--port <int>` (default `8765`),
-`--timeout <duration>` (default `5m`, `0` = no timeout — a safety net
-only, in case the browser/extension never responds at all),
-`--auto-open` (on by default; `--auto-open=false` drives the flow
-manually from the popup's "Connect"/"Apply" buttons instead), `--preview`
-(same meaning as above). The extension's id is pinned via the `"key"`
-field in `extension/chrome/manifest.json` so the CLI always knows the
-correct `chrome-extension://` URL to open. This path exists because
-Chrome exposes `chrome.bookmarks` only inside an extension context and
-Native Messaging hosts can only be launched by the browser, never the
-reverse — so before the file bridge existed, an auto-opened page was the
-closest equivalent to a single CLI-driven import; it's kept for cases
-where writing the Bookmarks file directly isn't wanted.
+## 10. Testing Strategy
 
-```
-$ marko sync --bridge=http
-marko sync listening on http://127.0.0.1:8765
-Opening the Marko extension in your browser...
-Waiting... (timeout in 5m0s)
-
-Computed plan (3 operation(s)):
-CREATE  folder    other/Work/Kubernetes
-CREATE  bookmark  other/Work/Kubernetes/Documentation
-UPDATE  bookmark  other/Work/Company Wiki  (url changed)
-
-Import report from extension:
-CREATE  other/Work/Kubernetes                    ok  id=137
-CREATE  other/Work/Kubernetes/Documentation       ok  id=138
-UPDATE  other/Work/Company Wiki                  ok
-Sync complete: 3 ok, 0 errors
-```
-
-Both bridges always log the full plan (and, for `--bridge=http`, the
-full per-operation report) to stdout as they run — this is "what was
-imported, what was deleted," not just a summary count.
-
-### 9.6 `marko export`
-Flags: `--out <file>` (default `marko-export.json`).
-
-```
-$ marko export --out snapshot.json
-Wrote snapshot.json (42 nodes)
-```
-Exit `1` on validation failure, `3` if `--out` path is unwritable.
-
-## 10. Chrome Extension Architecture
-
-Manifest V3, `extension/chrome/manifest.json` key points:
-- `permissions: ["bookmarks", "storage"]`
-- `host_permissions: ["http://127.0.0.1/*"]` (scoped to loopback only,
-  no broad `<all_urls>`)
-- `background: { service_worker: "service-worker.js", type: "module" }`
-- `action.default_popup: "popup/index.html"`
-- `options_page: "options/index.html"`
-
-### 10.1 Background Service Worker (`src/background/service-worker.ts`)
-Stateless per Manifest V3 lifecycle constraints. Responsibilities limited
-to: relaying long-lived connection state between popup/options and
-`chrome.storage.local` (e.g. last-used port, last plan summary for
-badge text), and optionally showing a badge count of pending operations.
-It does NOT hold in-memory state that must survive service worker
-suspension — anything needed across popup open/close cycles is persisted
-via `chrome.storage.local`.
-
-### 10.2 Popup (`src/popup/Popup.tsx`)
-- `ConnectionStatus` component: pings `GET /health`, shows connected/
-  disconnected + editable port (persisted in `chrome.storage.local`).
-- On "Connect": calls `lib/api.ts` -> `GET /plan`, then locally
-  `chrome.bookmarks.getTree()`, then `POST /diff`.
-- `DiffView` component: renders the `operations[]` list grouped by
-  `OpType`, each row via `OperationRow` (icon + path + before/after).
-- "Apply" button: calls `lib/bookmarksApply.ts`, which executes
-  operations sequentially via `chrome.bookmarks.create/update/remove
-  /removeTree/move`, maintaining the `TargetPath -> browserId` map
-  described in §8.3, then calls `POST /report`.
-
-### 10.3 Options (`src/options/Options.tsx`)
-- Default port configuration.
-- "Export current browser state" -> dumps `chrome.bookmarks.getTree()`
-  converted to `bookmarktree.BookmarkTree` JSON, downloads as a file (for
-  use with `marko diff --actual`).
-- "Import from file" -> `lib/importExport.ts`, implements the
-  CREATE-only fallback described in §8.4.
-
-### 10.4 `lib/` modules
-- `types.ts`: hand-maintained TypeScript mirrors of every Go JSON struct
-  in §6-§8 (`BookmarkTree`, `Node`, `Operation`, `Plan`, request/response
-  shapes). These MUST be kept in lockstep with the Go structs; any field
-  rename in Go requires the same rename here (no codegen in v1 — see
-  §12 deferred items).
-- `api.ts`: thin `fetch()` wrappers for `/health`, `/plan`, `/diff`,
-  `/report`, parameterized by the configured port, all against
-  `http://127.0.0.1:<port>`.
-- `bookmarksApply.ts`: the only module allowed to call
-  `chrome.bookmarks.*` mutation methods.
-
-## 11. Testing Strategy
-
-### 11.1 Unit tests (Go, standard `testing` package, table-driven)
+### 10.1 Unit tests (Go, standard `testing` package, table-driven)
 
 - `cli/parser`: valid minimal YAML parses to expected `model.Config`;
   malformed YAML returns a wrapped error with line/column; multiple
@@ -1281,11 +1082,18 @@ via `chrome.storage.local`.
   on the same node; recursive-delete (folder DELETE doesn't also emit
   child DELETEs); operation ordering (§7.3) asserted on a fixture
   requiring all four op types simultaneously.
-- `cli/sync`: `/plan`, `/diff`, `/report` handlers tested with
-  `net/http/httptest`, including malformed request bodies (400) and
-  validation failure surfaced as 500 with the right error code.
+- `cli/browserfile`: parses a fixture Chromium `Bookmarks` file (with a
+  non-standard root id and unknown per-node fields, mirroring real-world
+  data observed during development), converts it to a `BookmarkTree`,
+  applies a plan covering CREATE/UPDATE/DELETE/MOVE, writes it back, and
+  re-reads it to assert: real ids are preserved (never hardcoded),
+  unknown fields and the untouched `synced` root survive unmodified, new
+  nodes get fresh non-colliding ids, and a re-diff against the written
+  result is empty (idempotency). Also covers path resolution
+  (`LocateBookmarksFile`) and running-browser detection
+  (`IsBrowserRunning`) via a fixture `SingletonLock`.
 
-### 11.2 Integration test
+### 10.2 Integration test
 
 Location: `cli/renderer` + `cli/diff` combined test, or a dedicated
 `cli/internal/integration_test.go` (build-tagged `integration` if it
@@ -1298,53 +1106,43 @@ Scenario, asserting each stage's output feeds the next correctly:
 2. Resolve templates (template engine) — assert zero validation errors.
 3. Render to `BookmarkTree` (renderer) — assert exact expected tree
    structure (golden JSON fixture comparison).
-4. Simulate "Chrome Import": construct a synthetic **empty** actual
+4. Simulate an empty browser: construct a synthetic **empty** actual
    `BookmarkTree` (just the two empty `bar`/`other` roots) and run the
    diff engine — assert the resulting `Plan` contains exactly one
    `CREATE` per node in the desired tree, in valid breadth-first
    dependency order (a parent's CREATE never appears after its child's).
-5. Simulate "apply": a small in-memory fake of `chrome.bookmarks`
-   (Go struct implementing create/update/remove/move against a mutable
-   tree) applies the `Plan` op-by-op; assert the resulting tree exactly
-   equals the desired tree (structural equality, ignoring `BrowserID`/
-   `Index` bookkeeping fields).
+5. Simulate "apply": a small in-memory fake of the mutation target
+   (a Go struct implementing create/update/remove/move against a mutable
+   tree, the same shape `cli/browserfile` mutates for real) applies the
+   `Plan` op-by-op; assert the resulting tree exactly equals the desired
+   tree (structural equality, ignoring `BrowserID`/`Index` bookkeeping
+   fields).
 6. Re-run diff (desired vs the now-"synced" tree) — assert the resulting
    `Plan.Operations` is empty, proving idempotency.
 
-The TypeScript side has its own separate, smaller test suite (not part of
-this integration test) using Vitest for `lib/bookmarksApply.ts` against a
-mocked `chrome.bookmarks` global, deferred to the Chrome Extension
-Agent's own task scope but must follow the same op-application semantics
-validated by step 5 above.
+## 11. Out of Scope / Deferred
 
-## 12. Out of Scope / Deferred
-
-- Only Chrome (via `chrome.bookmarks`) is supported. Firefox/Safari/Edge
-  bridges are explicitly deferred; the `sync`/`export` JSON protocol is
-  designed to be browser-agnostic so a future `FirefoxBridge` extension
-  could reuse the same `GET /plan` / `POST /diff` / `POST /report`
-  contract, but no such adapter is built now.
-- No authentication/token on the local HTTP server; no HTTPS. Loopback
-  binding is the only safeguard in v1.
+- Only Chromium-family browsers (Brave, Chrome, Chromium, Edge — anything
+  that uses the same `Bookmarks` JSON file format) are supported.
+  Firefox uses a completely different (SQLite-based) storage format and
+  would need its own `cli/browserfile` implementation; none exists yet.
 - No cloud sync, no multi-device sync, no remote storage of
   `marko.yaml` or bookmark state — everything is local-file and
   local-browser only.
 - No two-way sync: Marko never reads the browser's current state back
-  into `marko.yaml`. `marko diff`/`export` "capture current state" is a
-  one-off convenience for feeding `--actual`, not a reconciliation
-  feature, and is explicitly not meant to be round-tripped back into
-  authored YAML automatically.
+  into `marko.yaml`. `marko diff --actual` is a one-off convenience for
+  previewing against a captured snapshot, not a reconciliation feature,
+  and is explicitly not meant to be round-tripped back into authored
+  YAML automatically.
 - No conflict resolution UI for concurrent edits (if the user edits
-  bookmarks in Chrome directly between `marko diff` and `marko sync`
-  apply, last-write-wins from the plan; no optimistic-lock/versioning).
-- No codegen for keeping `lib/types.ts` in sync with the Go structs;
-  kept manually in v1 (documented risk).
+  bookmarks directly between rendering the plan and `marko sync`
+  writing it, last-write-wins; no optimistic-lock/versioning) — this is
+  why the browser must be closed while `marko sync` runs.
 - No support for bookmark favicons, tags, or Chrome's "Managed
   bookmarks" enterprise policy tree — only title + URL + folder
   structure under the Bookmarks Bar / Other Bookmarks roots.
-- No package/distribution automation (Homebrew formula, Chrome Web
-  Store publishing) — local build/install only for v1, per spec's
-  "проект устанавливается локально."
+- No package/distribution automation (Homebrew formula, etc.) — local
+  build/install only.
 - Template engine has no macro system, no partials-with-parameters
   beyond what `Vars` + nesting already provide, and no conditional
   logic of any kind (by design, per spec §16).
