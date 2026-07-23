@@ -954,8 +954,11 @@ Exit codes (shared convention across all commands):
 
 ### 9.1 `marko init`
 Scaffolds a starter `marko.yaml` and a `templates/` directory (containing
-a worked example, `repository.yaml`; the starter `marko.yaml` includes a
-commented-out example of instantiating it) in the target directory.
+a worked example, `repository.yaml`; the starter `marko.yaml` includes
+both an example bookmark and an example of instantiating that template —
+both entirely commented out, so `marko validate`/`marko sync` never
+touches anything by surprise from a fresh scaffold) in the target
+directory.
 
 Flags: `--dir <path>` (default `.`), `--force` (overwrite existing file).
 
@@ -968,6 +971,12 @@ Created templates/
 Created templates/repository.yaml
 ```
 Exit `2` if `marko.yaml` already exists and `--force` not passed.
+
+Note: since both examples in the scaffolded `marko.yaml` are commented
+out, its `personal` collection has no active `bookmarks`/`templates`/
+`folders` — `marko validate` on a fresh, unedited scaffold reports
+`E_EMPTY_COLLECTION` until you uncomment or add real content. This is
+intentional: nothing in the scaffold is meant to be applied as-is.
 
 ### 9.2 `marko validate`
 Runs Phase A + Phase B (§5). Prints each finding one per line:

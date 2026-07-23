@@ -115,17 +115,37 @@ func TestCLI_InitValidateRender_RealisticUserFlow(t *testing.T) {
 		t.Fatalf("marko init (no --force, already exists): expected exit 2, got %d", code)
 	}
 
-	// 2. marko validate -- the scaffolded marko.yaml must be valid.
+	// 2. marko validate -- the raw scaffold is intentionally not yet
+	// valid: its example bookmark and example template usage are both
+	// commented out (so 'marko sync' can never surprise-create anything
+	// from a fresh scaffold), leaving the "personal" collection empty.
 	stdout, stderr, code = runCmd(t, dir, "validate")
-	if code != 0 {
-		t.Fatalf("marko validate: expected exit 0, got %d (stdout: %s, stderr: %s)", code, stdout, stderr)
+	if code != 1 {
+		t.Fatalf("marko validate (fresh scaffold): expected exit 1, got %d (stdout: %s, stderr: %s)", code, stdout, stderr)
 	}
-	if !strings.Contains(stdout, "is valid") {
-		t.Fatalf("marko validate: expected 'is valid' in stdout, got %q", stdout)
+	if !strings.Contains(stderr, "E_EMPTY_COLLECTION") {
+		t.Fatalf("marko validate (fresh scaffold): expected E_EMPTY_COLLECTION on stderr, got %q", stderr)
 	}
 
-	// 3. marko render -- expect a tree view mentioning the scaffolded
-	// "personal" collection's bookmark.
+	// 3. Fill in a real bookmark (simulating a user completing the
+	// scaffold), then marko validate/render must succeed against it.
+	markoPath := filepath.Join(dir, "marko.yaml")
+	filled := strings.Replace(readFile(t, markoPath),
+		"root: other\n",
+		"root: other\n    bookmarks:\n      - name: Example\n        url: \"https://example.com\"\n",
+		1)
+	if err := os.WriteFile(markoPath, []byte(filled), 0o644); err != nil {
+		t.Fatalf("writing filled-in marko.yaml: %v", err)
+	}
+
+	stdout, stderr, code = runCmd(t, dir, "validate")
+	if code != 0 {
+		t.Fatalf("marko validate (filled in): expected exit 0, got %d (stdout: %s, stderr: %s)", code, stdout, stderr)
+	}
+	if !strings.Contains(stdout, "is valid") {
+		t.Fatalf("marko validate (filled in): expected 'is valid' in stdout, got %q", stdout)
+	}
+
 	stdout, stderr, code = runCmd(t, dir, "render")
 	if code != 0 {
 		t.Fatalf("marko render: expected exit 0, got %d (stderr: %s)", code, stderr)
@@ -136,6 +156,15 @@ func TestCLI_InitValidateRender_RealisticUserFlow(t *testing.T) {
 	if !strings.Contains(stdout, "Example") {
 		t.Fatalf("marko render: expected scaffolded 'Example' bookmark in tree view, got %q", stdout)
 	}
+}
+
+func readFile(t *testing.T, path string) string {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("reading %q: %v", path, err)
+	}
+	return string(data)
 }
 
 func TestCLI_ValidateFailsWithNonZeroExitOnInvalidYAML(t *testing.T) {
@@ -223,8 +252,9 @@ func TestCLI_SyncFileBridge_RefusesWhenBrowserRunning(t *testing.T) {
 
 func TestCLI_SyncFileBridge_ForceWarnsAndProceeds(t *testing.T) {
 	dir := t.TempDir()
-	if _, _, code := runCmd(t, dir, "init"); code != 0 {
-		t.Fatalf("marko init setup failed")
+	valid := "version: \"1\"\ncollections:\n  personal:\n    root: other\n    bookmarks:\n      - name: Example\n        url: \"https://example.com\"\n"
+	if err := os.WriteFile(filepath.Join(dir, "marko.yaml"), []byte(valid), 0o644); err != nil {
+		t.Fatalf("writing marko.yaml: %v", err)
 	}
 	bookmarksPath := setUpFakeProfile(t, dir, true)
 

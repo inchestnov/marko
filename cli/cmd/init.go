@@ -19,9 +19,12 @@ const starterMarkoYAML = `version: "1"
 collections:
   personal:
     root: other
-    bookmarks:
-      - name: Example
-        url: "https://example.com"
+
+    # Example bookmark. Uncomment and edit (or replace) to get started:
+    #
+    # bookmarks:
+    #   - name: Example
+    #     url: "https://example.com"
 
     # Example of using a template (see templates/repository.yaml).
     # Commented out on purpose so 'marko sync' doesn't create anything

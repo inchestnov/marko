@@ -38,8 +38,10 @@ go build -o marko .
 
 ### `marko init`
 Scaffolds a starter `marko.yaml` and a `templates/` directory (with a
-worked example template, `repository.yaml`; `marko.yaml` includes a
-commented-out example of using it).
+worked example template, `repository.yaml`). Both the example bookmark
+and the example template usage in `marko.yaml` are commented out, so a
+fresh scaffold doesn't validate until you uncomment or add real content
+— nothing in it is meant to be applied as-is.
 
 | Flag | Default | Description |
 |---|---|---|
