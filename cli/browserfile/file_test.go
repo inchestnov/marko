@@ -292,7 +292,7 @@ func TestWrite_BackupCreatesRecoverableCopy(t *testing.T) {
 }
 
 func TestLocateBookmarksFile_DefaultsToBraveAndDefaultProfile(t *testing.T) {
-	path, err := LocateBookmarksFile("", "")
+	path, err := LocateBookmarksFile("")
 	if err != nil {
 		t.Fatalf("LocateBookmarksFile: %v", err)
 	}

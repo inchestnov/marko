@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"encoding/json"
 	"fmt"
 	"path/filepath"
 
@@ -23,28 +22,20 @@ var validateCmd = &cobra.Command{
 			return err
 		}
 
-		if jsonOutput {
-			data, err := json.MarshalIndent(findings, "", "  ")
-			if err != nil {
-				return newExitError(1, err)
+		errOut := cmd.ErrOrStderr()
+		for _, f := range findings {
+			line := f.String()
+			if f.Severity == validator.SeverityWarning {
+				fmt.Fprintln(errOut, "warning: "+line)
+			} else {
+				fmt.Fprintln(errOut, line)
 			}
-			fmt.Fprintln(cmd.OutOrStdout(), string(data))
-		} else {
-			errOut := cmd.ErrOrStderr()
-			for _, f := range findings {
-				line := f.String()
-				if f.Severity == validator.SeverityWarning {
-					fmt.Fprintln(errOut, "warning: "+line)
-				} else {
-					fmt.Fprintln(errOut, line)
-				}
-			}
-			if !validator.HasErrors(findings) {
-				errCount := countErrors(findings)
-				warnCount := countWarnings(findings)
-				fmt.Fprintf(cmd.OutOrStdout(), "%s is valid (%s, %s)\n",
-					filepath.Base(pr.Config.SourcePath), pluralize(errCount, "error"), pluralize(warnCount, "warning"))
-			}
+		}
+		if !validator.HasErrors(findings) {
+			errCount := countErrors(findings)
+			warnCount := countWarnings(findings)
+			fmt.Fprintf(cmd.OutOrStdout(), "%s is valid (%s, %s)\n",
+				filepath.Base(pr.Config.SourcePath), pluralize(errCount, "error"), pluralize(warnCount, "warning"))
 		}
 
 		if validator.HasErrors(findings) {

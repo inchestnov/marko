@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -35,15 +34,7 @@ var renderCmd = &cobra.Command{
 			out = file
 		}
 
-		if jsonOutput {
-			data, err := json.MarshalIndent(pr.Tree, "", "  ")
-			if err != nil {
-				return newExitError(1, err)
-			}
-			fmt.Fprintln(out, string(data))
-		} else {
-			printTreeView(out, pr.Tree)
-		}
+		printTreeView(out, pr.Tree)
 
 		if f != nil {
 			fmt.Fprintf(cmd.OutOrStdout(), "Wrote %s\n", renderOut)

@@ -16,7 +16,6 @@ var (
 	configPath   string
 	templatesDir string
 	verbose      bool
-	jsonOutput   bool
 )
 
 var rootCmd = &cobra.Command{
@@ -31,7 +30,6 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&configPath, "config", "", "path to marko.yaml (default: search upward from cwd)")
 	rootCmd.PersistentFlags().StringVar(&templatesDir, "templates-dir", "", "path to templates directory (default: <dir of marko.yaml>/templates)")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "verbose output")
-	rootCmd.PersistentFlags().BoolVar(&jsonOutput, "json", false, "machine readable JSON output where applicable")
 	rootCmd.Version = version.Version
 }
 

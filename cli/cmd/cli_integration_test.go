@@ -17,14 +17,11 @@ package cmd
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/inchestnov/marko/cli/internal/bookmarktree"
 )
 
 // runCmd resets global flag state, executes rootCmd with the given args
@@ -81,23 +78,19 @@ func resetGlobalFlags() {
 	configPath = ""
 	templatesDir = ""
 	verbose = false
-	jsonOutput = false
 
 	initDir = "."
 	initForce = false
 
 	renderOut = ""
 
-	diffActual = ""
-
 	syncBrowser = ""
-	syncProfile = ""
 	syncBookmarksFile = ""
 	syncForce = false
 	syncPreview = false
 }
 
-func TestCLI_InitValidateRenderDiff_RealisticUserFlow(t *testing.T) {
+func TestCLI_InitValidateRender_RealisticUserFlow(t *testing.T) {
 	dir := t.TempDir()
 
 	// 1. marko init
@@ -143,73 +136,6 @@ func TestCLI_InitValidateRenderDiff_RealisticUserFlow(t *testing.T) {
 	if !strings.Contains(stdout, "Example") {
 		t.Fatalf("marko render: expected scaffolded 'Example' bookmark in tree view, got %q", stdout)
 	}
-
-	// render --json must produce a valid bookmarktree.BookmarkTree JSON.
-	stdout, _, code = runCmd(t, dir, "render", "--json")
-	if code != 0 {
-		t.Fatalf("marko render --json: expected exit 0, got %d", code)
-	}
-	var tree bookmarktree.BookmarkTree
-	if err := json.Unmarshal([]byte(stdout), &tree); err != nil {
-		t.Fatalf("marko render --json: output is not valid BookmarkTree JSON: %v\noutput: %s", err, stdout)
-	}
-	if len(tree.Roots) != 2 {
-		t.Fatalf("expected 2 roots (bar, other), got %d", len(tree.Roots))
-	}
-
-	// 4. marko diff --actual <empty tree file> -- expect CREATE operations
-	// (an empty browser has nothing matching the scaffolded "Example"
-	// bookmark, so it must be CREATEd).
-	emptyActual := bookmarktree.BookmarkTree{
-		Roots: []*bookmarktree.Node{
-			{Kind: bookmarktree.KindFolder, Name: "bar", BrowserID: "1"},
-			{Kind: bookmarktree.KindFolder, Name: "other", BrowserID: "2"},
-		},
-	}
-	actualPath := filepath.Join(dir, "actual.json")
-	actualData, err := json.Marshal(emptyActual)
-	if err != nil {
-		t.Fatalf("marshal empty actual tree: %v", err)
-	}
-	if err := os.WriteFile(actualPath, actualData, 0o644); err != nil {
-		t.Fatalf("write actual tree file: %v", err)
-	}
-
-	stdout, stderr, code = runCmd(t, dir, "diff", "--actual", actualPath)
-	if code != 0 {
-		t.Fatalf("marko diff: expected exit 0 (non-empty diff is not an error), got %d (stderr: %s)", code, stderr)
-	}
-	if !strings.Contains(stdout, "CREATE") {
-		t.Fatalf("marko diff: expected at least one CREATE op in output, got %q", stdout)
-	}
-	if !strings.Contains(stdout, "Example") {
-		t.Fatalf("marko diff: expected CREATE for scaffolded 'Example' bookmark, got %q", stdout)
-	}
-
-	// diff --json must parse as a diff.Plan with only CREATE ops (browser
-	// starts empty).
-	stdout, _, code = runCmd(t, dir, "diff", "--actual", actualPath, "--json")
-	if code != 0 {
-		t.Fatalf("marko diff --json: expected exit 0, got %d", code)
-	}
-	var plan struct {
-		GeneratedAt string `json:"generatedAt"`
-		Operations  []struct {
-			Type string `json:"type"`
-			Name string `json:"name"`
-		} `json:"operations"`
-	}
-	if err := json.Unmarshal([]byte(stdout), &plan); err != nil {
-		t.Fatalf("marko diff --json: output is not valid Plan JSON: %v\noutput: %s", err, stdout)
-	}
-	if len(plan.Operations) == 0 {
-		t.Fatal("expected at least one operation in the JSON plan")
-	}
-	for _, op := range plan.Operations {
-		if op.Type != "CREATE" {
-			t.Fatalf("expected only CREATE ops against an empty browser tree, found %s", op.Type)
-		}
-	}
 }
 
 func TestCLI_ValidateFailsWithNonZeroExitOnInvalidYAML(t *testing.T) {
@@ -228,21 +154,6 @@ func TestCLI_ValidateFailsWithNonZeroExitOnInvalidYAML(t *testing.T) {
 	}
 	if !strings.Contains(stderr, "E_MISSING_FIELD") {
 		t.Fatalf("expected E_MISSING_FIELD on stderr, got %q", stderr)
-	}
-}
-
-func TestCLI_DiffWithoutActualFlagDirectsToSync(t *testing.T) {
-	dir := t.TempDir()
-	if _, _, code := runCmd(t, dir, "init"); code != 0 {
-		t.Fatalf("marko init setup failed")
-	}
-
-	_, stderr, code := runCmd(t, dir, "diff")
-	if code != 1 {
-		t.Fatalf("marko diff without --actual: expected exit 1, got %d", code)
-	}
-	if !strings.Contains(stderr, "marko sync") {
-		t.Fatalf("expected guidance to run 'marko sync' on stderr, got %q", stderr)
 	}
 }
 

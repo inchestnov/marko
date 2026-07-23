@@ -15,16 +15,31 @@ extension involved.
 ## Install
 
 ```bash
-cd cli
-go build -o marko .        # or: go install .
+go install github.com/inchestnov/marko/cli@latest
 ```
 
-That's all you need.
+This installs the binary as `cli` in `$(go env GOPATH)/bin` (Go names it
+after the module's directory, not the project). Rename it if you'd
+rather run it as `marko`:
+
+```bash
+mv "$(go env GOPATH)/bin/cli" "$(go env GOPATH)/bin/marko"
+```
+
+### Installation from source code
+
+```bash
+git clone https://github.com/inchestnov/marko.git
+cd marko/cli
+go build -o marko .
+```
 
 ## Commands
 
 ### `marko init`
-Scaffolds a starter `marko.yaml` (+ empty `templates/`).
+Scaffolds a starter `marko.yaml` and a `templates/` directory (with a
+worked example template, `repository.yaml`; `marko.yaml` includes a
+commented-out example of using it).
 
 | Flag | Default | Description |
 |---|---|---|
@@ -41,13 +56,6 @@ Runs the full pipeline (parse → resolve templates → validate → render) and
 |---|---|---|
 | `--out` | stdout | Write output to a file instead of stdout |
 
-### `marko diff`
-Compares the desired state against a previously-captured browser state and prints an operation plan (`CREATE`/`UPDATE`/`DELETE`/`MOVE`). Read-only; never touches the browser.
-
-| Flag | Default | Description |
-|---|---|---|
-| `--actual` | — | Path to a captured `actualTree` JSON file (required) |
-
 ### `marko sync`
 The main command: diffs the desired state against your browser and imports it, by reading and writing the target browser's native `Bookmarks` file directly.
 
@@ -60,8 +68,7 @@ marko sync --config marko.yaml             # apply it
 |---|---|---|
 | `--preview` | off | Compute and print the plan without changing anything (dry run) |
 | `--browser` | `brave` | `brave`, `chrome`, `chromium`, or `edge` |
-| `--profile` | `Default` | Browser profile directory name |
-| `--bookmarks-file` | — | Explicit path to a `Bookmarks` file, overrides `--browser`/`--profile` |
+| `--bookmarks-file` | — | Explicit path to a `Bookmarks` file, overrides `--browser` |
 | `--force` | off | Write even if the browser looks like it's currently running for that profile (prints a warning instead of refusing) |
 
 The target browser must be closed — it periodically flushes its own
@@ -74,8 +81,7 @@ a warning is printed instead of refusing.
 
 Available on every command: `--config <path>` (default: search upward
 from cwd for `marko.yaml`), `--templates-dir <path>` (default: `<dir of
-marko.yaml>/templates`), `--json` (machine-readable output where
-applicable), `-v/--verbose`.
+marko.yaml>/templates`), `-v/--verbose`.
 
 ## Development
 

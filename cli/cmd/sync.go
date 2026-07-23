@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/inchestnov/marko/cli/browserfile"
 	"github.com/inchestnov/marko/cli/diff"
@@ -10,7 +11,6 @@ import (
 
 var (
 	syncBrowser       string
-	syncProfile       string
 	syncBookmarksFile string
 	syncForce         bool
 	syncPreview       bool
@@ -25,7 +25,7 @@ var syncCmd = &cobra.Command{
 		path := syncBookmarksFile
 		if path == "" {
 			var err error
-			path, err = browserfile.LocateBookmarksFile(syncBrowser, syncProfile)
+			path, err = browserfile.LocateBookmarksFile(syncBrowser)
 			if err != nil {
 				return newExitError(2, err)
 			}
@@ -86,9 +86,20 @@ var syncCmd = &cobra.Command{
 
 func init() {
 	syncCmd.Flags().StringVar(&syncBrowser, "browser", "", fmt.Sprintf("browser whose Bookmarks file to use (one of %v, default %q)", browserfile.KnownBrowsers, browserfile.DefaultBrowser))
-	syncCmd.Flags().StringVar(&syncProfile, "profile", "", fmt.Sprintf("browser profile directory name (default %q)", browserfile.DefaultProfile))
-	syncCmd.Flags().StringVar(&syncBookmarksFile, "bookmarks-file", "", "explicit path to a Bookmarks file, overriding --browser/--profile")
+	syncCmd.Flags().StringVar(&syncBookmarksFile, "bookmarks-file", "", "explicit path to a Bookmarks file, overriding --browser")
 	syncCmd.Flags().BoolVar(&syncForce, "force", false, "write even if the browser appears to be running for this profile (prints a warning instead of refusing)")
 	syncCmd.Flags().BoolVar(&syncPreview, "preview", false, "compute and log the plan without making any changes (dry run)")
 	rootCmd.AddCommand(syncCmd)
+}
+
+func printPlan(cmd *cobra.Command, plan *diff.Plan) {
+	out := cmd.OutOrStdout()
+	for _, op := range plan.Operations {
+		path := strings.Join(op.TargetPath, "/")
+		line := fmt.Sprintf("%-7s %-9s %s", op.Type, op.Kind, path)
+		if op.Type == diff.OpUpdate && len(op.Changes) > 0 {
+			line += fmt.Sprintf("  (%s changed)", strings.Join(op.Changes, ", "))
+		}
+		fmt.Fprintln(out, line)
+	}
 }

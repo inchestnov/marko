@@ -22,6 +22,36 @@ collections:
     bookmarks:
       - name: Example
         url: "https://example.com"
+
+    # Example of using a template (see templates/repository.yaml).
+    # Commented out on purpose so 'marko sync' doesn't create anything
+    # from it until you uncomment and adjust it yourself:
+    #
+    # templates:
+    #   - template: repository
+    #     vars:
+    #       owner: golang
+    #       repo_name: go
+`
+
+const starterRepositoryTemplateYAML = `# Example template: a "repository" folder with a couple of GitHub links
+# for a given owner/repo, parameterized by variables. See marko.yaml for
+# a commented-out example of instantiating this template, and
+# docs/templates.md for the full template authoring guide.
+templates:
+  repository:
+    vars:
+      owner:
+        required: true
+      repo_name:
+        required: true
+    folder:
+      name: "{{ .repo_name }}"
+    bookmarks:
+      - name: Repository
+        url: "https://github.com/{{ .owner }}/{{ .repo_name }}"
+      - name: Pull Requests
+        url: "https://github.com/{{ .owner }}/{{ .repo_name }}/pulls"
 `
 
 var initCmd = &cobra.Command{
@@ -52,6 +82,12 @@ var initCmd = &cobra.Command{
 			return newExitError(3, fmt.Errorf("creating %q: %w", templatesPath, err))
 		}
 		fmt.Fprintf(cmd.OutOrStdout(), "Created %s/\n", templatesPath)
+
+		repoTemplatePath := filepath.Join(templatesPath, "repository.yaml")
+		if err := os.WriteFile(repoTemplatePath, []byte(starterRepositoryTemplateYAML), 0o644); err != nil {
+			return newExitError(3, fmt.Errorf("writing %q: %w", repoTemplatePath, err))
+		}
+		fmt.Fprintf(cmd.OutOrStdout(), "Created %s\n", repoTemplatePath)
 
 		return nil
 	},

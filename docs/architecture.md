@@ -41,8 +41,8 @@ Design principles:
 - The template engine is a pure data-substitution engine: variables,
   nesting, composition, and inheritance are allowed; code execution, shell,
   JS, Python, and loops are explicitly forbidden.
-- All operations are idempotent: running `marko diff` / `marko sync`
-  repeatedly with no changes to `marko.yaml` or the browser produces an
+- All operations are idempotent: running `marko sync --preview` / `marko
+  sync` repeatedly with no changes to `marko.yaml` or the browser produces an
   empty plan.
 
 ## 2. Directory / Module Layout
@@ -569,9 +569,9 @@ Where `<location>` is a YAML-path-like breadcrumb, e.g.
 | Two sibling nodes (same parent) resolve to the same `(kind, name)` pair — two bookmarks or two folders with an identical title directly under the same parent | `E_DUPLICATE_SIBLING` | `duplicate bookmark "X" under collections.C (also produced by templates[0])` — this is an error only for Bookmarks with identical `(name, url)` are silently deduplicated (idempotent), but identical `name` with a **different** `url` under the same parent is `E_DUPLICATE_SIBLING`. Two folders with the same name under the same parent are always **merged** (their children concatenated), not an error. |
 
 Exit behavior: any `E_*` finding causes `marko validate` (and any command
-that internally validates, i.e. `render`/`diff`/`sync`/`export`) to fail
-with a non-zero exit code (see §9). `W_*` findings are printed to stderr
-but do not affect the exit code.
+that internally validates, i.e. `render`/`sync`) to fail with a
+non-zero exit code (see §9). `W_*` findings are printed to stderr but do
+not affect the exit code.
 
 ## 6. Render Engine
 
@@ -866,9 +866,11 @@ the current codebase depends on it.)
 ### 8.1 Locating the file
 
 `--bookmarks-file <path>` if given; otherwise `--browser <name>` (one of
-`brave` (default), `chrome`, `chromium`, `edge`) + `--profile <name>`
-(default `Default`), resolved to the OS-appropriate path (e.g. on macOS,
-`~/Library/Application Support/BraveSoftware/Brave-Browser/<profile>/Bookmarks`
+`brave` (default), `chrome`, `chromium`, `edge`), always under the
+browser's default profile directory (`Default` — there is no flag to
+select a different profile), resolved to the OS-appropriate path (e.g.
+on macOS,
+`~/Library/Application Support/BraveSoftware/Brave-Browser/Default/Bookmarks`
 for Brave; see `cli/browserfile/paths.go` for the full per-OS table).
 
 ### 8.2 Safety: is the browser running?
@@ -945,32 +947,32 @@ Restart the browser (if it was already closed, just open it) to see the change.
 
 Global flags (all commands): `--config <path>` (default: search upward
 from cwd for `marko.yaml`), `--templates-dir <path>` (default:
-`<dir of marko.yaml>/templates`), `-v/--verbose`, `--json` (machine
-readable output where applicable).
+`<dir of marko.yaml>/templates`), `-v/--verbose`.
 
 Exit codes (shared convention across all commands):
 `0` success, `1` validation/runtime error, `2` usage error (bad flags/args), `3` I/O error (file not found/unreadable).
 
 ### 9.1 `marko init`
-Scaffolds a starter `marko.yaml` (+ empty `templates/` dir) in the target
-directory.
+Scaffolds a starter `marko.yaml` and a `templates/` directory (containing
+a worked example, `repository.yaml`; the starter `marko.yaml` includes a
+commented-out example of instantiating it) in the target directory.
 
 Flags: `--dir <path>` (default `.`), `--force` (overwrite existing file).
 
-Stdout: path of the created file. Stdin: none.
+Stdout: path of each created file. Stdin: none.
 
 ```
 $ marko init
 Created marko.yaml
 Created templates/
+Created templates/repository.yaml
 ```
 Exit `2` if `marko.yaml` already exists and `--force` not passed.
 
 ### 9.2 `marko validate`
 Runs Phase A + Phase B (§5). Prints each finding one per line:
 `<code>: <message> (at <location>)`, errors to stderr, warnings to
-stderr prefixed `warning:`. With `--json`, prints a single JSON array of
-finding objects instead.
+stderr prefixed `warning:`.
 
 ```
 $ marko validate
@@ -987,10 +989,9 @@ $ echo $?
 Exit `0` only if zero `E_*` findings (warnings alone still exit `0`).
 
 ### 9.3 `marko render`
-Runs full pipeline through §6, prints the resulting `BookmarkTree`.
-Default output: an indented tree view to stdout. `--json` prints the raw
-`bookmarktree.BookmarkTree` JSON (§6 struct). `--out <file>` writes to a
-file instead of stdout.
+Runs full pipeline through §6, prints the resulting `BookmarkTree` as an
+indented tree view to stdout. `--out <file>` writes to a file instead of
+stdout.
 
 ```
 $ marko render
@@ -1005,39 +1006,19 @@ Bookmarks Bar
 ```
 Exit `1` if validation fails first (render always validates internally).
 
-### 9.4 `marko diff`
-A read-only preview: `--actual <file>` accepts a previously-captured
-`actualTree` JSON (the same `bookmarktree.BookmarkTree` shape used
-everywhere else) and diffs it against the desired state without writing
-anything. `--actual` is required — `marko diff` never reads the browser
-itself; `marko sync --preview` is the more convenient way to see this
-same plan computed directly from the browser's real `Bookmarks` file.
-
-```
-$ marko diff --actual browser-state.json
-CREATE  folder    bar/Work/Kubernetes
-CREATE  bookmark  bar/Work/Kubernetes/Documentation
-UPDATE  bookmark  bar/Work/Company Wiki  (url changed)
-DELETE  folder    other/Old Project
-```
-`--json` prints the `diff.Plan` JSON. Exit `0` even if operations are
-non-empty (a non-empty diff is not an error); exit `1` only on
-validation/parse errors reading `--actual` or `marko.yaml`.
-
-### 9.5 `marko sync`
+### 9.4 `marko sync`
 Reads and writes the target browser's native `Bookmarks` file directly
 (`cli/browserfile`, §8) — no extension, no server. Flags: `--browser
-<name>` (default `brave`; also `chrome`, `chromium`, `edge`), `--profile
-<name>` (default `Default`), `--bookmarks-file <path>` (explicit
-override, skips `--browser`/`--profile` lookup), `--force` (write even
-if the browser looks like it's running for that profile; prints a
-warning instead of refusing), `--preview` (compute and log the plan
-without writing). The browser must be closed (or `--force` passed) since
-Chromium periodically flushes its own in-memory bookmark state back to
-this file, which would silently overwrite Marko's changes otherwise. A
-timestamped backup of the previous file content is always written
-alongside it before any change, and the full computed plan is always
-logged before anything is written — "what was imported, what was
+<name>` (default `brave`; also `chrome`, `chromium`, `edge`),
+`--bookmarks-file <path>` (explicit override, skips `--browser` lookup),
+`--force` (write even if the browser looks like it's running for that
+profile; prints a warning instead of refusing), `--preview` (compute and
+log the plan without writing). The browser must be closed (or `--force`
+passed) since Chromium periodically flushes its own in-memory bookmark
+state back to this file, which would silently overwrite Marko's changes
+otherwise. A timestamped backup of the previous file content is always
+written alongside it before any change, and the full computed plan is
+always logged before anything is written — "what was imported, what was
 deleted," not just a summary count.
 
 ```
@@ -1130,10 +1111,10 @@ Scenario, asserting each stage's output feeds the next correctly:
   `marko.yaml` or bookmark state — everything is local-file and
   local-browser only.
 - No two-way sync: Marko never reads the browser's current state back
-  into `marko.yaml`. `marko diff --actual` is a one-off convenience for
-  previewing against a captured snapshot, not a reconciliation feature,
-  and is explicitly not meant to be round-tripped back into authored
-  YAML automatically.
+  into `marko.yaml`. `marko sync --preview` is a one-off convenience for
+  previewing the computed plan, not a reconciliation feature, and is
+  explicitly not meant to be round-tripped back into authored YAML
+  automatically.
 - No conflict resolution UI for concurrent edits (if the user edits
   bookmarks directly between rendering the plan and `marko sync`
   writing it, last-write-wins; no optimistic-lock/versioning) — this is
@@ -1141,8 +1122,10 @@ Scenario, asserting each stage's output feeds the next correctly:
 - No support for bookmark favicons, tags, or Chrome's "Managed
   bookmarks" enterprise policy tree — only title + URL + folder
   structure under the Bookmarks Bar / Other Bookmarks roots.
-- No package/distribution automation (Homebrew formula, etc.) — local
-  build/install only.
+- No package/distribution automation beyond `go install` (Homebrew
+  formula, etc.).
+- No selecting a non-default browser profile (`--profile`-style flag) --
+  Marko only ever targets each browser's `Default` profile directory.
 - Template engine has no macro system, no partials-with-parameters
   beyond what `Vars` + nesting already provide, and no conditional
   logic of any kind (by design, per spec §16).

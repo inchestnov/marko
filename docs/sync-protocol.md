@@ -2,9 +2,8 @@
 
 `marko sync` reads and writes the target browser's native `Bookmarks`
 file directly — no extension, no local server, no CORS. This document is
-the reference for that mechanism (implemented in
-[`cli/browserfile`](../cli/browserfile)), plus the `marko export` static
-file format and `marko diff --actual`. For the diff/matching algorithm
+the reference for that mechanism, implemented in
+[`cli/browserfile`](../cli/browserfile). For the diff/matching algorithm
 itself, see [`docs/architecture.md`](./architecture.md) §7.
 
 An earlier version of Marko drove a Chrome extension over a local HTTP
@@ -22,8 +21,9 @@ categories of problem by not going through any browser extension API.
 1. Locates the browser's `Bookmarks` file: `--bookmarks-file <path>` if
    given, else `--browser <name>` (`brave` by default — see
    `browserfile.KnownBrowsers` for the full list: `brave`, `chrome`,
-   `chromium`, `edge`) + `--profile <name>` (`Default` by default),
-   resolved to the OS-appropriate path (e.g. on macOS,
+   `chromium`, `edge`), always under that browser's `Default` profile
+   directory (there is no flag to select a different profile), resolved
+   to the OS-appropriate path (e.g. on macOS,
    `~/Library/Application Support/BraveSoftware/Brave-Browser/Default/Bookmarks`
    for Brave).
 2. Refuses to proceed if the browser looks like it's currently running
@@ -84,50 +84,10 @@ is load-bearing. The automatic backup (step 5 above) is the actual
 safety net if anything about a given browser version's handling of this
 file ever turns out to be pickier than observed.
 
-## `marko export` file format
-
-`marko export [--out <file>]` (default `marko-export.json`) runs the
-full parse -> resolve -> validate -> render pipeline and writes the
-result to a static JSON file instead of the browser, as a portable
-snapshot of the desired state:
-
-```json
-{
-  "formatVersion": "1",
-  "generatedAt": "2026-07-22T10:00:00Z",
-  "markoVersion": "1.0.0",
-  "desiredTree": { "roots": [] }
-}
-```
-
-```
-$ marko export --out snapshot.json
-Wrote snapshot.json (25 nodes)
-```
-
-## `marko diff --actual <file>`
-
-A read-only preview: compares the desired state against a previously
-captured `actualTree` JSON (same shape as `desiredTree` above) without
-writing anything anywhere:
-
-```
-$ marko diff --actual browser-state.json
-CREATE  folder    bar/Work/Kubernetes
-CREATE  bookmark  bar/Work/Kubernetes/Documentation
-UPDATE  bookmark  bar/Work/Company Wiki  (url changed)
-DELETE  folder    other/Old Project
-```
-
-`--actual` is required — `marko diff` never reads the browser itself.
-`marko sync --preview` is the more convenient way to see this same plan
-computed directly from the browser's real `Bookmarks` file; `marko diff
---actual` remains useful for comparing against a hand-crafted or
-archived snapshot instead. `--json` prints the raw `diff.Plan` JSON.
-
 ## See also
 
 - [`docs/architecture.md`](./architecture.md) §7 (diff/matching
   algorithm) and §9 (CLI command specs).
 - [`docs/yaml-reference.md`](./yaml-reference.md), [`docs/templates.md`](./templates.md)
-  for the `marko.yaml` side of the pipeline that produces `desiredTree`.
+  for the `marko.yaml` side of the pipeline that produces the desired
+  `BookmarkTree`.
