@@ -1,0 +1,13 @@
+version: "1"
+
+# Same "github" template as the root templates/ library -- see
+# /templates/github.yaml and docs/templates.md for commentary.
+templates:
+  github:
+    folder:
+      name: GitHub
+    bookmarks:
+      - name: Documentation
+        url: "https://docs.github.com"
+      - name: GitHub
+        url: "https://github.com"

@@ -1,0 +1,29 @@
+version: "1"
+
+# Same "repository" template as the root templates/ library (composes
+# profile + github) -- see /templates/repository.yaml and
+# docs/templates.md for the full composition/variable-precedence
+# walkthrough.
+templates:
+  repository:
+    vars:
+      username:
+        required: true
+        type: string
+      repo_name:
+        required: true
+        type: string
+      repo_org:
+        default: "{{ .username }}"
+        type: string
+    folder:
+      name: "{{ .repo_org }}/{{ .repo_name }}"
+    templates:
+      - template: profile
+        vars:
+          username: "{{ .username }}"
+      - template: github
+        as: "GitHub Links"
+    bookmarks:
+      - name: Repository
+        url: "https://github.com/{{ .repo_org }}/{{ .repo_name }}"

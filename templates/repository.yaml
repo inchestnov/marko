@@ -1,4 +1,45 @@
-# Placeholder reusable template library file.
-# Filled in by the Documentation/Examples Agent.
 version: "1"
-templates: {}
+
+# The "repository" template composes "profile" + "github" (nested
+# templates) and adds its own parameterized bookmark -- the worked
+# example from docs/architecture.md §3.2 / marko.txt §15:
+#
+#   repository = profile (flattened, no folder of its own)
+#              + github  (nested as its own sub-folder, renamed "GitHub Links")
+#              + its own "Repository" bookmark
+#
+# Variable precedence worth calling out (see docs/templates.md):
+#   - `username` and `repo_name` are required, with no template-level
+#     default, so callers MUST supply them via the instantiating
+#     TemplateRef's `vars:`.
+#   - `repo_org` defaults to "{{ .username }}" -- a default expression
+#     that references a *sibling* variable declared on this same
+#     template. That sibling reference resolves against the scope
+#     *including* any `vars:` override passed at the call site, so a
+#     caller can override `username` and have `repo_org`'s default
+#     follow it automatically, or override `repo_org` directly to break
+#     that link (see the "some-other-project" instantiation in
+#     examples/full/marko.yaml).
+templates:
+  repository:
+    vars:
+      username:
+        required: true
+        type: string
+      repo_name:
+        required: true
+        type: string
+      repo_org:
+        default: "{{ .username }}"
+        type: string
+    folder:
+      name: "{{ .repo_org }}/{{ .repo_name }}"
+    templates:
+      - template: profile
+        vars:
+          username: "{{ .username }}"
+      - template: github
+        as: "GitHub Links"
+    bookmarks:
+      - name: Repository
+        url: "https://github.com/{{ .repo_org }}/{{ .repo_name }}"

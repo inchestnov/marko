@@ -1,4 +1,17 @@
-# Placeholder reusable template library file.
-# Filled in by the Documentation/Examples Agent.
 version: "1"
-templates: {}
+
+# The "profile" template: a minimal, reusable, single-bookmark template
+# that requires a `username` variable. It declares no `folder`, so when
+# instantiated it is *flattened* into whatever parent (Collection or
+# other Template) references it -- see templates/repository.yaml, which
+# composes this template as a mixin. See docs/architecture.md §3.2/§4.4
+# and docs/templates.md for the full composition walkthrough.
+templates:
+  profile:
+    vars:
+      username:
+        required: true
+        type: string
+    bookmarks:
+      - name: "{{ .username }} - Profile"
+        url: "https://github.com/{{ .username }}"

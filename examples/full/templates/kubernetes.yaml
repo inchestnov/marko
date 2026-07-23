@@ -1,0 +1,24 @@
+version: "1"
+
+# The "kubernetes" template from marko.txt §14 / docs/architecture.md
+# §3.2. It references the global `company_domain` variable directly in
+# its bookmark URLs without declaring its own `vars:` entry for it --
+# this works because top-level Collections (and, transitively, any
+# global variable already resolved in an ancestor scope) make every
+# global `variables:` default visible, not just names a template
+# explicitly re-declares in its own `vars:` map. See
+# docs/templates.md#global-variables for the precise rule and how it
+# differs from a template's own declared `vars`.
+templates:
+  kubernetes:
+    folder:
+      name: Kubernetes
+    bookmarks:
+      - name: Documentation
+        url: "https://kubernetes.io/docs/"
+      - name: GitHub
+        url: "https://github.com/kubernetes/kubernetes"
+      - name: Dashboard
+        url: "https://dashboard.{{ .company_domain }}"
+      - name: Grafana
+        url: "https://grafana.{{ .company_domain }}"

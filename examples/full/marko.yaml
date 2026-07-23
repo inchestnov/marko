@@ -1,4 +1,57 @@
-# Full example marko.yaml placeholder.
-# Filled in by the Documentation/Examples Agent.
 version: "1"
-collections: {}
+
+# A richer, end-to-end example demonstrating:
+#   - a global `variables:` default (company_domain) consumed directly
+#     by the "kubernetes" template's bookmark URLs;
+#   - two collections mounted on different native roots ("bar"/"other");
+#   - the "repository" template (profile + github composition)
+#     instantiated twice with different vars, mirroring
+#     docs/architecture.md §3.2's "work" collection example;
+#   - an inline `folders:` NamedGroup for one-off structure that doesn't
+#     warrant a reusable template.
+#
+# Validate with:
+#   marko validate --config examples/full/marko.yaml --templates-dir examples/full/templates
+# Render with:
+#   marko render   --config examples/full/marko.yaml --templates-dir examples/full/templates
+
+variables:
+  company_domain:
+    default: company.com
+    type: string
+
+collections:
+  work:
+    root: bar
+    folder:
+      name: Work
+    templates:
+      - template: kubernetes
+      - template: repository
+        as: "marko"
+        vars:
+          username: octocat
+          repo_name: marko
+      - template: repository
+        as: "some-other-project"
+        vars:
+          username: octocat
+          repo_name: some-other-project
+          repo_org: some-org
+    bookmarks:
+      - name: Company Wiki
+        url: "https://wiki.{{ .company_domain }}"
+
+  personal:
+    root: other
+    bookmarks:
+      - name: Gmail
+        url: "https://mail.google.com"
+    folders:
+      - folder:
+          name: Reading List
+        bookmarks:
+          - name: Hacker News
+            url: "https://news.ycombinator.com"
+          - name: Lobsters
+            url: "https://lobste.rs"

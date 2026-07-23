@@ -1,4 +1,24 @@
-# Minimal example marko.yaml placeholder.
-# Filled in by the Documentation/Examples Agent.
 version: "1"
-collections: {}
+
+# A tiny, single-collection example for a first-time user: no templates,
+# no variables -- just a handful of plain bookmarks and one inline
+# folder. See docs/yaml-reference.md for the full schema and
+# examples/full/marko.yaml for a richer example using templates.
+collections:
+  personal:
+    root: other
+    bookmarks:
+      - name: Gmail
+        url: "https://mail.google.com"
+      - name: Google Calendar
+        url: "https://calendar.google.com"
+      - name: Marko on GitHub
+        url: "https://github.com/inchestnov/marko"
+    folders:
+      - folder:
+          name: Reading List
+        bookmarks:
+          - name: Hacker News
+            url: "https://news.ycombinator.com"
+          - name: Lobsters
+            url: "https://lobste.rs"

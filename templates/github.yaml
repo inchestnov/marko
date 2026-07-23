@@ -1,4 +1,16 @@
-# Placeholder reusable template library file.
-# Filled in by the Documentation/Examples Agent.
 version: "1"
-templates: {}
+
+# The "github" template: a small, self-contained folder of GitHub-related
+# bookmarks. It declares its own `folder`, so when instantiated it always
+# nests as a sub-folder (named "GitHub" by default, or renamed via the
+# instantiating TemplateRef's `as:`) -- see templates/repository.yaml,
+# which nests this template renamed to "GitHub Links".
+templates:
+  github:
+    folder:
+      name: GitHub
+    bookmarks:
+      - name: Documentation
+        url: "https://docs.github.com"
+      - name: GitHub
+        url: "https://github.com"

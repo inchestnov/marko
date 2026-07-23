@@ -1,0 +1,15 @@
+version: "1"
+
+# Same "profile" template as the root templates/ library -- duplicated
+# here so this example is fully self-contained (see
+# examples/full/marko.yaml's --templates-dir). See
+# /templates/profile.yaml and docs/templates.md for commentary.
+templates:
+  profile:
+    vars:
+      username:
+        required: true
+        type: string
+    bookmarks:
+      - name: "{{ .username }} - Profile"
+        url: "https://github.com/{{ .username }}"
