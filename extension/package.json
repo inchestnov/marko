@@ -8,20 +8,22 @@
     "dev": "vite",
     "build": "vite build && vite build --config vite.config.background.ts",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
-    "typescript": "^5.6.3",
-    "vite": "^5.4.10",
-    "@vitejs/plugin-react": "^4.3.3",
     "@types/chrome": "^0.0.279",
+    "@types/node": "^22.9.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
-    "@types/node": "^22.9.0",
+    "@vitejs/plugin-react": "^4.3.3",
+    "@vitest/coverage-v8": "^2.1.9",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10",
     "vitest": "^2.1.4"
   }
 }
