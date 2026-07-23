@@ -2,6 +2,7 @@
   "manifest_version": 3,
   "name": "Marko",
   "version": "0.0.1",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvAvF+hrArYvGTes29W1KqhJA/y0flzxXY9MBIarGfvbLF1SpTJ8xRwHL47AjarREVGry9RdAOGDc+Cz6RslH1H2EdHPTUoTjxZDtmCi8SbPU0dDx+v/G7ZVsrraSZm4WpGbkCCLHMdFXGvVSoSOsmcDupeTGjjANbMq+wrQLTfBPNZ9f4tdwhiij5VDQSG2+DLUm2Qk7ZCQR1fp+S2RultGsJFCSjj4VA/LWui+ev9hvfrGkHPSCJsuYBRdFdWlXElYD2rlawBxNRbt6pl4KaZO0Q00KIeVUnou2Fj/HPVmQMrZ8nijC6/aBFQdJuPj8bkyw/xnjFNV+KlrUf3hm6wIDAQAB",
   "description": "Bookmark infrastructure as code - review and apply Marko sync plans.",
   "permissions": ["bookmarks", "storage"],
   "host_permissions": ["http://127.0.0.1/*"],

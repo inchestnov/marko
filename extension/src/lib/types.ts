@@ -119,11 +119,16 @@ export interface DiffResponse {
   operations: Operation[];
 }
 
-/** A single per-operation apply result, as sent in POST /report's `results`. */
+/**
+ * A single per-operation result, as sent in POST /report's `results`.
+ * "planned" is used instead of "ok"/"error" in preview/dry-run mode,
+ * where the operation was computed but deliberately not executed against
+ * chrome.bookmarks.
+ */
 export interface OperationResult {
   targetPath: string[];
   type: OpType;
-  status: "ok" | "error";
+  status: "ok" | "error" | "planned";
   /** Present when status === "ok" and the op created/targeted a node. */
   browserId?: string;
   /** Present when status === "error". */
@@ -133,6 +138,11 @@ export interface OperationResult {
 /** POST /report request body. */
 export interface ReportRequest {
   results: OperationResult[];
+  /**
+   * True when this report describes a preview/dry-run: results are all
+   * "planned" and no chrome.bookmarks mutation was actually performed.
+   */
+  preview?: boolean;
 }
 
 /** POST /report response body. */

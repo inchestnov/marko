@@ -22,7 +22,7 @@ var (
 var rootCmd = &cobra.Command{
 	Use:           "marko",
 	Short:         "Bookmark infrastructure as code",
-	Long:          "Marko - Bookmark infrastructure as code.\n\nMarko lets you declare your browser bookmarks (folders, links, reusable\ntemplates) in a YAML file and syncs that declared state into Chrome via\na local HTTP bridge and companion extension.",
+	Long:          "Marko - Bookmark infrastructure as code.\n\nMarko lets you declare your browser bookmarks (folders, links, reusable\ntemplates) in a YAML file and syncs that declared state into your\nbrowser -- by default, by reading and writing its Bookmarks file\ndirectly (marko sync), or via a legacy Chrome extension + local HTTP\nbridge (marko sync --bridge=http).",
 	SilenceUsage:  true,
 	SilenceErrors: true,
 }

@@ -1,18 +1,99 @@
 # Sync Protocol Reference
 
-Marko's CLI never talks to the browser directly — there is no native
-messaging host. Instead, `marko sync` starts a short-lived, loopback-only
-HTTP server that the Chrome extension polls. This document is the
-user/integrator-facing reference for that protocol (implemented in
-[`cli/sync/server.go`](../cli/sync/server.go) and
-[`cli/sync/protocol.go`](../cli/sync/protocol.go), consumed by
-[`extension/src/lib/api.ts`](../extension/src/lib/api.ts) and
-[`extension/src/lib/types.ts`](../extension/src/lib/types.ts)), plus the
-`marko export` static file format and its reduced-functionality import
-fallback. For the diff/matching algorithm itself, see
-[`docs/architecture.md`](./architecture.md) §7.
+`marko sync` has two ways of reaching the browser, selected with
+`--bridge`:
 
-## Transport
+- **`--bridge=file` (default).** Marko reads and writes the target
+  browser's native `Bookmarks` file directly — no extension, no HTTP
+  server, no CORS. See [File bridge](#file-bridge-default) below.
+- **`--bridge=http` (legacy).** A short-lived, loopback-only HTTP server
+  that a Chrome extension polls/auto-opens. See
+  [HTTP + extension bridge](#http--extension-bridge-legacy---bridgehttp)
+  below.
+
+The file bridge is the recommended, default path: it was added after
+real-world testing of the HTTP+extension bridge surfaced two problems —
+a missing CORS-preflight (`OPTIONS`) handler that made `POST /diff` and
+`POST /report` silently hang from the browser's perspective (fixed, but
+illustrative of how much surface area a browser-extension bridge has),
+and a hardcoded assumption that the "Other Bookmarks" root always has id
+`"2"`, which turned out to be false on a real profile (its actual id was
+`"3"`). Reading/writing the Bookmarks file sidesteps both categories of
+problem entirely by not going through the browser's extension APIs at
+all.
+
+## File bridge (default)
+
+Implemented in [`cli/browserfile`](../cli/browserfile). Marko:
+
+1. Locates the browser's `Bookmarks` file: `--bookmarks-file <path>` if
+   given, else `--browser <name>` (`brave` by default — see
+   `browserfile.KnownBrowsers` for the full list: `brave`, `chrome`,
+   `chromium`, `edge`) + `--profile <name>` (`Default` by default),
+   resolved to the OS-appropriate path (e.g. on macOS,
+   `~/Library/Application Support/BraveSoftware/Brave-Browser/Default/Bookmarks`
+   for Brave).
+2. Refuses to proceed if the browser looks like it's currently running
+   for that profile (Chromium's `SingletonLock` file/symlink is present
+   next to the profile directory) — unless `--force` is passed. **The
+   browser must be closed** while `--bridge=file` runs: Chromium
+   periodically flushes its in-memory bookmark model back to this file,
+   which would silently overwrite Marko's changes if the browser were
+   left open.
+3. Parses the file (kept as a fully generic `map[string]interface{}` tree
+   internally, so any field Marko doesn't explicitly model — Brave's
+   `meta_info`, `date_last_used`, the entire `synced`/mobile-bookmarks
+   root, future additions — survives a read-modify-write round trip
+   completely untouched) and converts the `bookmark_bar`/`other` roots
+   into a `bookmarktree.BookmarkTree`, reading each root's real `id`
+   directly from the file rather than assuming `"1"`/`"2"` (see above).
+4. Runs it through the exact same `diff.Diff` engine as every other
+   Marko command (§7) — the diff engine's contract is just "two
+   `BookmarkTree` values in, a `Plan` out," so it doesn't care whether
+   "actual" came from a browser extension or a parsed file.
+5. Unless `--preview`, applies the plan directly to the in-memory
+   parsed structure (assigning fresh sequential ids, random v4 GUIDs, and
+   WebKit-epoch timestamps to new nodes, threading not-yet-existing
+   parent ids forward within the same pass exactly like
+   `extension/src/lib/bookmarksApply.ts`'s `resolveParentBrowserId` does
+   for the HTTP bridge), backs up the original file's current content to
+   `<path>.marko-backup-<unix-timestamp>`, and writes the result back
+   atomically (temp file + rename).
+6. The full plan is always printed before anything is written — this is
+   "what was imported, what was deleted," not just a summary count, and
+   it's printed whether or not `--preview` is set.
+
+```
+$ marko sync --config marko.yaml
+Bookmarks file: /Users/you/Library/Application Support/BraveSoftware/Brave-Browser/Default/Bookmarks
+
+Computed plan (3 operation(s)):
+CREATE  folder    other/Work/Kubernetes
+CREATE  bookmark  other/Work/Kubernetes/Documentation
+UPDATE  bookmark  other/Work/Company Wiki  (url changed)
+
+Wrote 3 operation(s) to .../Bookmarks (a backup of the previous content was saved alongside it).
+Restart the browser (if it was already closed, just open it) to see the change.
+```
+
+`marko sync --preview --config marko.yaml` runs the exact same steps 1-4
+and prints the plan, but stops before step 5 — nothing is written.
+
+### On the `checksum` field
+
+Chromium's `Bookmarks` file carries a `"checksum"` field that the browser
+recomputes from an MD5 over each node's id/name(/url). Marko recomputes
+its own best-effort approximation of that algorithm on every write, but
+this was confirmed during development to not be strictly
+enforced/validated by Chromium-family browsers on load (an exact
+algorithmic match is not required for the file to be accepted) — it
+exists mainly so the file doesn't carry an obviously-stale value, not
+because getting it byte-for-byte identical to Chromium's own computation
+is load-bearing. The automatic backup (step 5 above) is the actual
+safety net if anything about a given browser version's handling of this
+file ever turns out to be pickier than observed.
+
+## HTTP + extension bridge (legacy, `--bridge=http`)
 
 - `marko sync` binds a plain HTTP (not HTTPS) server strictly to
   `127.0.0.1` — the listener is created with
@@ -24,12 +105,61 @@ fallback. For the diff/matching algorithm itself, see
   transit (the user's own already-locally-readable bookmark titles and
   URLs) — see [`docs/architecture.md`](./architecture.md) §12.
 - CORS: every response from `/plan`, `/diff`, and `/report` sets
-  `Access-Control-Allow-Origin: *` (no `Access-Control-Allow-Credentials`).
-  This is wider than a single fixed extension origin because unpacked/dev
-  extension installs don't have a stable ID known to the CLI ahead of
-  time; since the server binds only to loopback and holds no
-  cookies/session state, the wildcard does not expose anything beyond
-  what's already locally readable.
+  `Access-Control-Allow-Origin: chrome-extension://<ExtensionID>` (no
+  `Access-Control-Allow-Credentials`). This works because the extension's
+  id is pinned to a fixed value via the `"key"` field in
+  `extension/chrome/manifest.json` (see `ExtensionID` in
+  [`cli/sync/autoopen.go`](../cli/sync/autoopen.go)) — unlike a typical
+  unpacked/dev install, which gets a random id per machine, this
+  extension always loads with the same id, so the CLI can name it
+  exactly instead of falling back to a wildcard origin.
+
+## Auto-sync: how `marko sync` reaches into the browser
+
+Chrome only exposes `chrome.bookmarks` to code running inside an
+extension — no external process can call it directly, and Native
+Messaging hosts can only be *launched by* the browser, never the reverse,
+so a CLI process cannot reach into an already-running Chrome on its own
+initiative either way. To still make `marko sync` feel like a single
+command that "just imports," it does the next best thing:
+
+1. `marko sync` starts the local HTTP server described below.
+2. By default (`--auto-open`, on unless passed `--auto-open=false`) it
+   shells out to the OS's default URL handler (`open` / `xdg-open` /
+   `rundll32 url.dll,FileProtocolHandler`) to open
+   `chrome-extension://<ExtensionID>/sync/index.html?port=<port>&preview=<0|1>`
+   — a dedicated extension page (`extension/src/sync/Sync.tsx`), distinct
+   from the popup, whose whole purpose is to run the sync flow
+   automatically the moment it loads, with no button clicks.
+3. That page's `useEffect` on mount: `GET /plan` -> `desiredTree`,
+   `chrome.bookmarks.getTree()` (local) -> `actualTree`, `POST /diff` ->
+   `operations[]`. If `preview=1` it calls `planOperations()` (no
+   `chrome.bookmarks` calls at all); otherwise it calls
+   `applyOperations()`, which does the real `chrome.bookmarks.*` calls.
+   Either way it then `POST /report`s the results (see below) and shows a
+   final summary on the page — no auto-close (Chrome blocks
+   `window.close()` on tabs it opened itself, not a script), so the page
+   just tells the user they can close the tab.
+4. `marko sync` prints the full plan (via `Server.OnDiff`) and the full
+   per-operation report (via `Server.OnReport`) to stdout as they arrive,
+   then exits as soon as the report is received — it does not wait out
+   the full `--timeout` once the browser has responded.
+
+This means the CLI-visible lifecycle is bounded to one sync cycle: it
+opens the browser, logs exactly what it found and what happened to it,
+and exits — never hangs indefinitely (the `--timeout`, default `5m`, is
+only a safety net for the case where the browser/extension never
+responds at all, e.g. the extension isn't installed).
+
+### `--preview` (dry run)
+
+`marko sync --preview` runs the exact same flow, but the auto-sync page
+never calls any `chrome.bookmarks` mutation method — it uses
+`planOperations()` instead of `applyOperations()`, which reports every
+operation with `status: "planned"` and `preview: true` on the `/report`
+body. `marko sync` recognizes this and prints "Preview complete. No
+changes were made to Chrome." with exit code `0` regardless of the plan
+size, instead of the normal ok/error summary.
 
 ## Endpoints
 
@@ -138,10 +268,11 @@ does.
 
 ### `POST /report`
 
-Request body — one entry per applied operation:
+Request body — one entry per operation, plus a top-level `preview` flag:
 
 ```json
 {
+  "preview": false,
   "results": [
     { "targetPath": ["bar", "Work", "Kubernetes"], "type": "CREATE", "status": "ok", "browserId": "137" },
     { "targetPath": ["bar", "Work", "Company Wiki"], "type": "UPDATE", "status": "error", "error": "chrome.bookmarks.update failed: ..." }
@@ -149,14 +280,23 @@ Request body — one entry per applied operation:
 }
 ```
 
+`status` is `"ok"` / `"error"` for a real apply, or `"planned"` for every
+entry when `preview: true` (see `--preview` above) — the operation was
+computed but no `chrome.bookmarks` call was made for it.
+
 Response `200 OK`:
 
 ```json
 { "accepted": true, "okCount": 1, "errorCount": 1 }
 ```
 
-`marko sync` prints a human-readable summary (`Sync complete: N ok, M
-errors`) and exits: `0` if `errorCount == 0`, else `1`.
+(`okCount`/`errorCount` only tally `"ok"`/`"error"` statuses; `"planned"`
+results count toward neither.)
+
+`marko sync` prints the full per-operation log (via `Server.OnReport`,
+see above) followed by a summary. For a real sync: `Sync complete: N ok,
+M errors`, exit `0` if `errorCount == 0` else `1`. For a preview:
+`Preview complete. No changes were made to Chrome.`, always exit `0`.
 
 ### `POST /shutdown` (optional)
 
@@ -167,31 +307,42 @@ waiting out `marko sync`'s `--timeout` (default `5m`, `0` = no timeout).
 ## Sequence
 
 ```
-marko sync                         (binds 127.0.0.1:8765, waits)
+marko sync                         (binds 127.0.0.1:8765)
     |
     v
-Extension popup -> "Connect"
+os/exec opens chrome-extension://<ExtensionID>/sync/index.html?port=8765&preview=0
+(--auto-open, default on; the extension id is pinned, see above)
     |
     v
-GET  /health                       -> { status: "ok", ... }
+Sync.tsx runs automatically on page load, no clicks required:
 GET  /plan                         -> desiredTree
 chrome.bookmarks.getTree()         -> actualTree (local, in the extension)
 POST /diff { actualTree }          -> operations[]
     |
     v
-DiffView renders operations[] grouped by type; user clicks "Apply"
+marko sync logs the full plan (Server.OnDiff)
     |
     v
-bookmarksApply.ts applies operations[] in array order via
+preview=0: bookmarksApply.ts applies operations[] in array order via
 chrome.bookmarks.create/update/remove/removeTree/move, threading
 newly-created browserIds forward via a local targetPath -> browserId map
+preview=1: planOperations() computes the same results without calling
+chrome.bookmarks at all
     |
     v
-POST /report { results }           -> { accepted, okCount, errorCount }
+POST /report { results, preview }  -> { accepted, okCount, errorCount }
     |
     v
-marko sync prints summary, exits (0 if errorCount == 0, else 1)
+marko sync logs the full report (Server.OnReport), prints a summary,
+and exits immediately (0 if errorCount == 0 or preview, else 1) —
+it does not wait out --timeout once the browser has responded
 ```
+
+The popup (manual "Connect"/"Apply" buttons) still exists and uses the
+identical `GET /plan` / `POST /diff` / `POST /report` calls — it's a
+fallback for when you'd rather review the diff by hand before running
+`marko sync` again, e.g. via `marko diff --actual <exported-state.json>`
+without a running CLI session at all.
 
 ## `marko export` file format
 

@@ -1123,20 +1123,74 @@ non-empty (a non-empty diff is not an error); exit `1` only on
 validation/parse errors reading `--actual` or `marko.yaml`.
 
 ### 9.5 `marko sync`
-Starts the local HTTP server (§8). Flags: `--port <int>` (default
-`8765`), `--timeout <duration>` (default `5m`, `0` = no timeout, run
-until `Ctrl+C`), `--auto-open` (opens the extension's popup URL via OS
-default browser handler, best-effort, off by default).
+Selects one of two bridges via `--bridge` (default `file`) — see
+`docs/sync-protocol.md` for the full reference on both.
+
+**`--bridge=file` (default).** Reads and writes the target browser's
+native `Bookmarks` file directly (`cli/browserfile`) — no extension, no
+HTTP server. Flags: `--browser <name>` (default `brave`; also `chrome`,
+`chromium`, `edge`), `--profile <name>` (default `Default`),
+`--bookmarks-file <path>` (explicit override, skips `--browser`/
+`--profile` lookup), `--force` (write even if the browser looks like
+it's running for that profile), `--preview` (compute and log the plan
+without writing). The browser must be closed (or `--force` passed) since
+Chromium periodically flushes its own in-memory bookmark state back to
+this file, which would silently overwrite Marko's changes otherwise. A
+timestamped backup of the previous file content is always written
+alongside it before any change.
 
 ```
-$ marko sync
-marko sync listening on http://127.0.0.1:8765
-Open the Marko extension and click "Connect" to review and apply changes.
-Waiting... (timeout in 5m0s)
+$ marko sync --config marko.yaml
+Bookmarks file: /Users/you/Library/Application Support/BraveSoftware/Brave-Browser/Default/Bookmarks
+
+Computed plan (3 operation(s)):
+CREATE  folder    other/Work/Kubernetes
+CREATE  bookmark  other/Work/Kubernetes/Documentation
+UPDATE  bookmark  other/Work/Company Wiki  (url changed)
+
+Wrote 3 operation(s) to .../Bookmarks (a backup of the previous content was saved alongside it).
+Restart the browser (if it was already closed, just open it) to see the change.
 ```
-On completion (after `/report` or timeout or Ctrl+C), prints a summary
-and exits per §8.2's rule (`0` if no errors reported, `1` if any
-operation errored, `1` if timed out with no report received).
+
+**`--bridge=http` (legacy).** Starts the local HTTP server (§8) and, by
+default, opens the extension's dedicated auto-sync page
+(`chrome-extension://<ExtensionID>/sync/index.html`, distinct from the
+popup), which runs the whole connect -> diff -> apply -> report sequence
+automatically on load. Flags: `--port <int>` (default `8765`),
+`--timeout <duration>` (default `5m`, `0` = no timeout — a safety net
+only, in case the browser/extension never responds at all),
+`--auto-open` (on by default; `--auto-open=false` drives the flow
+manually from the popup's "Connect"/"Apply" buttons instead), `--preview`
+(same meaning as above). The extension's id is pinned via the `"key"`
+field in `extension/chrome/manifest.json` so the CLI always knows the
+correct `chrome-extension://` URL to open. This path exists because
+Chrome exposes `chrome.bookmarks` only inside an extension context and
+Native Messaging hosts can only be launched by the browser, never the
+reverse — so before the file bridge existed, an auto-opened page was the
+closest equivalent to a single CLI-driven import; it's kept for cases
+where writing the Bookmarks file directly isn't wanted.
+
+```
+$ marko sync --bridge=http
+marko sync listening on http://127.0.0.1:8765
+Opening the Marko extension in your browser...
+Waiting... (timeout in 5m0s)
+
+Computed plan (3 operation(s)):
+CREATE  folder    other/Work/Kubernetes
+CREATE  bookmark  other/Work/Kubernetes/Documentation
+UPDATE  bookmark  other/Work/Company Wiki  (url changed)
+
+Import report from extension:
+CREATE  other/Work/Kubernetes                    ok  id=137
+CREATE  other/Work/Kubernetes/Documentation       ok  id=138
+UPDATE  other/Work/Company Wiki                  ok
+Sync complete: 3 ok, 0 errors
+```
+
+Both bridges always log the full plan (and, for `--bridge=http`, the
+full per-operation report) to stdout as they run — this is "what was
+imported, what was deleted," not just a summary count.
 
 ### 9.6 `marko export`
 Flags: `--out <file>` (default `marko-export.json`).

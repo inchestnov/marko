@@ -41,18 +41,24 @@ type DiffResponse struct {
 	Operations  []diff.Operation `json:"operations"`
 }
 
-// ReportResult is one entry in POST /report's "results" array.
+// ReportResult is one entry in POST /report's "results" array. Status is
+// "ok" or "error" for a real apply, or "planned" when Preview is true on
+// the enclosing ReportRequest (the operation was computed but
+// deliberately not executed against chrome.bookmarks).
 type ReportResult struct {
 	TargetPath []string    `json:"targetPath"`
 	Type       diff.OpType `json:"type"`
-	Status     string      `json:"status"` // "ok" | "error"
+	Status     string      `json:"status"` // "ok" | "error" | "planned"
 	BrowserID  string      `json:"browserId,omitempty"`
 	Error      string      `json:"error,omitempty"`
 }
 
-// ReportRequest is the body of POST /report.
+// ReportRequest is the body of POST /report. Preview is true when this
+// report describes a dry run: every Results entry has Status "planned"
+// and no chrome.bookmarks mutation was actually performed.
 type ReportRequest struct {
 	Results []ReportResult `json:"results"`
+	Preview bool           `json:"preview,omitempty"`
 }
 
 // ReportResponse is the body of a successful POST /report.

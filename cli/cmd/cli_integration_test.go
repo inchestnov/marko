@@ -92,6 +92,13 @@ func resetGlobalFlags() {
 
 	exportOut = "marko-export.json"
 
+	syncBridge = "file"
+	syncBrowser = ""
+	syncProfile = ""
+	syncBookmarksFile = ""
+	syncForce = false
+	syncPreview = false
+
 	syncPort = 8765
 	syncTimeout = "5m"
 	syncAutoOpen = false
@@ -290,5 +297,72 @@ func TestCLI_RenderFailsWhenValidationFails(t *testing.T) {
 	}
 	if !strings.Contains(stderr, "E_INVALID_URL") {
 		t.Fatalf("expected E_INVALID_URL on stderr, got %q", stderr)
+	}
+}
+
+const fakeBookmarksFileFixture = `{
+  "checksum": "x",
+  "roots": {
+    "bookmark_bar": {"children": [], "id": "1", "name": "Bookmarks bar", "type": "folder"},
+    "other": {"children": [], "id": "2", "name": "Other bookmarks", "type": "folder"},
+    "synced": {"children": [], "id": "3", "name": "Mobile bookmarks", "type": "folder"}
+  },
+  "version": 1
+}`
+
+// setUpFakeProfile creates <dir>/UserData/Default/Bookmarks and, if
+// lockRunning is true, a SingletonLock file next to it (the marker
+// browserfile.IsBrowserRunning looks for), returning the Bookmarks path.
+func setUpFakeProfile(t *testing.T, dir string, lockRunning bool) string {
+	t.Helper()
+	profileDir := filepath.Join(dir, "UserData", "Default")
+	if err := os.MkdirAll(profileDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	path := filepath.Join(profileDir, "Bookmarks")
+	if err := os.WriteFile(path, []byte(fakeBookmarksFileFixture), 0o644); err != nil {
+		t.Fatalf("writing fake Bookmarks: %v", err)
+	}
+	if lockRunning {
+		lockPath := filepath.Join(dir, "UserData", "SingletonLock")
+		if err := os.Symlink("somehost-1234", lockPath); err != nil {
+			t.Fatalf("creating fake SingletonLock: %v", err)
+		}
+	}
+	return path
+}
+
+func TestCLI_SyncFileBridge_RefusesWhenBrowserRunning(t *testing.T) {
+	dir := t.TempDir()
+	if _, _, code := runCmd(t, dir, "init"); code != 0 {
+		t.Fatalf("marko init setup failed")
+	}
+	bookmarksPath := setUpFakeProfile(t, dir, true)
+
+	_, stderr, code := runCmd(t, dir, "sync", "--bookmarks-file", bookmarksPath, "--preview")
+	if code != 1 {
+		t.Fatalf("expected exit 1 when the browser appears to be running, got %d (stderr: %s)", code, stderr)
+	}
+	if !strings.Contains(stderr, "--force") {
+		t.Fatalf("expected guidance to pass --force on stderr, got %q", stderr)
+	}
+}
+
+func TestCLI_SyncFileBridge_ForceWarnsAndProceeds(t *testing.T) {
+	dir := t.TempDir()
+	if _, _, code := runCmd(t, dir, "init"); code != 0 {
+		t.Fatalf("marko init setup failed")
+	}
+	bookmarksPath := setUpFakeProfile(t, dir, true)
+
+	stdout, stderr, code := runCmd(t, dir, "sync", "--bookmarks-file", bookmarksPath, "--force")
+	if code != 0 {
+		t.Fatalf("expected exit 0 with --force, got %d (stdout: %s, stderr: %s)", code, stdout, stderr)
+	}
+	if !strings.Contains(stderr, "warning:") || !strings.Contains(stderr, "--force") {
+		t.Fatalf("expected a warning on stderr mentioning --force, got %q", stderr)
+	}
+	if !strings.Contains(stdout, "Wrote") {
+		t.Fatalf("expected the sync to actually proceed and write, got stdout %q", stdout)
 	}
 }

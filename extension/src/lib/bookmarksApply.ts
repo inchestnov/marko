@@ -167,6 +167,22 @@ export async function applyOperations(
   return results;
 }
 
+/**
+ * Preview/dry-run counterpart to applyOperations: reports what each
+ * operation *would* do, in the same OperationResult shape, without
+ * calling any chrome.bookmarks mutation method. Used by the auto-sync
+ * page's preview mode so the CLI's log shows a realistic plan without
+ * touching the browser.
+ */
+export function planOperations(operations: Operation[]): OperationResult[] {
+  return operations.map((op) => ({
+    targetPath: op.targetPath,
+    type: op.type,
+    status: "planned",
+    ...(op.type !== "CREATE" && op.browserId ? { browserId: op.browserId } : {}),
+  }));
+}
+
 /** Applies a single operation, returning the relevant browserId (if any). */
 async function applyOne(
   op: Operation,

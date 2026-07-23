@@ -103,11 +103,12 @@ export async function postDiff(
 
 export async function postReport(
   port: number,
-  results: OperationResult[]
+  results: OperationResult[],
+  preview = false
 ): Promise<ReportResponse> {
   return request<ReportResponse>(port, "/report", {
     method: "POST",
-    body: JSON.stringify({ results }),
+    body: JSON.stringify({ results, preview }),
   });
 }
 

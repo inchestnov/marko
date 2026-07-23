@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { applyOperations, chromeTreeToBookmarkTree } from "./bookmarksApply";
+import { applyOperations, chromeTreeToBookmarkTree, planOperations } from "./bookmarksApply";
 import type { Operation } from "./types";
 
 // Minimal mock of the chrome.bookmarks API surface used by
@@ -354,5 +354,40 @@ describe("chromeTreeToBookmarkTree", () => {
     const tree = chromeTreeToBookmarkTree(chromeRoots);
 
     expect(tree.roots.map((r) => r.name)).toEqual(["bar", "other"]);
+  });
+});
+
+describe("planOperations", () => {
+  it("marks every operation as planned without calling chrome.bookmarks", () => {
+    const { create, update, remove, removeTree, move } = installChromeMock();
+
+    const operations: Operation[] = [
+      { type: "DELETE", targetPath: ["other", "Old"], kind: "folder", name: "Old", browserId: "9", position: 0 },
+      { type: "CREATE", targetPath: ["other", "New"], kind: "folder", name: "New", position: 0 },
+      {
+        type: "UPDATE",
+        targetPath: ["other", "Renamed"],
+        kind: "bookmark",
+        name: "Renamed",
+        url: "https://example.com",
+        browserId: "5",
+        position: 0,
+        changes: ["name"],
+      },
+    ];
+
+    const results = planOperations(operations);
+
+    expect(results).toEqual([
+      { targetPath: ["other", "Old"], type: "DELETE", status: "planned", browserId: "9" },
+      { targetPath: ["other", "New"], type: "CREATE", status: "planned" },
+      { targetPath: ["other", "Renamed"], type: "UPDATE", status: "planned", browserId: "5" },
+    ]);
+
+    expect(create).not.toHaveBeenCalled();
+    expect(update).not.toHaveBeenCalled();
+    expect(remove).not.toHaveBeenCalled();
+    expect(removeTree).not.toHaveBeenCalled();
+    expect(move).not.toHaveBeenCalled();
   });
 });

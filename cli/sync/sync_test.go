@@ -66,8 +66,8 @@ func TestHandlePlan_Success(t *testing.T) {
 	if resp.MarkoVersion == "" {
 		t.Fatal("expected markoVersion set")
 	}
-	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "*" {
-		t.Fatalf("expected wildcard CORS header on /plan, got %q", got)
+	if got, want := rec.Header().Get("Access-Control-Allow-Origin"), "chrome-extension://"+ExtensionID; got != want {
+		t.Fatalf("expected CORS header %q on /plan, got %q", want, got)
 	}
 }
 
@@ -180,9 +180,9 @@ func TestHandleReport_Success(t *testing.T) {
 		t.Fatalf("expected accepted=true okCount=1 errorCount=1, got %+v", resp)
 	}
 
-	received, okCount, errorCount := s.WaitForReport(0)
-	if !received || okCount != 1 || errorCount != 1 {
-		t.Fatalf("expected WaitForReport to surface the same counts, got received=%v ok=%d err=%d", received, okCount, errorCount)
+	received, okCount, errorCount, preview := s.WaitForReport(0)
+	if !received || okCount != 1 || errorCount != 1 || preview {
+		t.Fatalf("expected WaitForReport to surface the same counts, got received=%v ok=%d err=%d preview=%v", received, okCount, errorCount, preview)
 	}
 }
 
@@ -214,5 +214,48 @@ func TestListen_BindsLoopbackOnly(t *testing.T) {
 	}
 	if host != "127.0.0.1" {
 		t.Fatalf("expected loopback bind, got host %q", host)
+	}
+}
+
+// TestCORSPreflight_AnsweredByRealServer exercises an OPTIONS preflight
+// request through the actual http.Server (not a direct handler call), the
+// way a browser sends one ahead of a cross-origin POST with a
+// Content-Type: application/json body (as the extension's postDiff/
+// postReport calls do). Without corsPreflightMiddleware answering this
+// with the right headers, the browser blocks the real POST and the
+// extension's fetch() rejects -- which otherwise silently manifests as
+// `marko sync` waiting out its full --timeout for a /report that can
+// never arrive.
+func TestCORSPreflight_AnsweredByRealServer(t *testing.T) {
+	s := NewServer(func() (*bookmarktree.BookmarkTree, error) { return sampleTree(), nil })
+	if err := s.Listen(0); err != nil {
+		t.Fatalf("Listen: %v", err)
+	}
+	defer s.Shutdown()
+	go func() { _ = s.Serve() }()
+
+	for _, path := range []string{"/diff", "/report"} {
+		req, err := http.NewRequest(http.MethodOptions, "http://"+s.Addr()+path, nil)
+		if err != nil {
+			t.Fatalf("building OPTIONS request for %s: %v", path, err)
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("OPTIONS %s: %v", path, err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusNoContent {
+			t.Fatalf("OPTIONS %s: expected 204, got %d", path, resp.StatusCode)
+		}
+		if got, want := resp.Header.Get("Access-Control-Allow-Origin"), "chrome-extension://"+ExtensionID; got != want {
+			t.Fatalf("OPTIONS %s: expected Access-Control-Allow-Origin %q, got %q", path, want, got)
+		}
+		if got := resp.Header.Get("Access-Control-Allow-Methods"); got == "" {
+			t.Fatalf("OPTIONS %s: expected Access-Control-Allow-Methods to be set", path)
+		}
+		if got := resp.Header.Get("Access-Control-Allow-Headers"); got == "" {
+			t.Fatalf("OPTIONS %s: expected Access-Control-Allow-Headers to be set", path)
+		}
 	}
 }

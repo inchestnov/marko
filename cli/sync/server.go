@@ -41,6 +41,18 @@ func (e *PipelineError) Error() string {
 type Server struct {
 	Render RenderFunc
 
+	// OnDiff, if set, is called with the freshly-computed plan every time
+	// POST /diff succeeds, before the response is written. Used by
+	// `marko sync` to print a full log of what will be sent to the
+	// extension.
+	OnDiff func(plan *diff.Plan)
+
+	// OnReport, if set, is called with the decoded request body every time
+	// POST /report succeeds, before the response is written. Used by
+	// `marko sync` to print a full per-operation log of what was actually
+	// imported/deleted (or, in preview mode, what would have been).
+	OnReport func(req ReportRequest)
+
 	httpServer *http.Server
 	listener   net.Listener
 
@@ -54,6 +66,7 @@ type reportOutcome struct {
 	okCount    int
 	errorCount int
 	received   bool
+	preview    bool
 }
 
 // NewServer constructs a Server that uses render to (re-)compute the
@@ -90,8 +103,30 @@ func (s *Server) Listen(port int) error {
 	mux.HandleFunc("/report", s.handleReport)
 	mux.HandleFunc("/shutdown", s.handleShutdown)
 
-	s.httpServer = &http.Server{Handler: mux}
+	s.httpServer = &http.Server{Handler: corsPreflightMiddleware(mux)}
 	return nil
+}
+
+// corsPreflightMiddleware answers CORS preflight OPTIONS requests before
+// they reach the mux. Browsers send a preflight OPTIONS request ahead of
+// any cross-origin POST with a non-"simple" Content-Type such as
+// application/json (which /diff and /report both use) — without an
+// explicit 2xx response carrying Access-Control-Allow-Methods/-Headers
+// here, the browser blocks the real POST and the extension's fetch()
+// rejects, which otherwise silently manifests as `marko sync` waiting
+// out its full --timeout for a /report that can never arrive.
+func corsPreflightMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		setCORS(w)
+		if r.Method == http.MethodOptions {
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+			w.Header().Set("Access-Control-Max-Age", "600")
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // Serve blocks, accepting connections, until the listener is closed
@@ -114,22 +149,29 @@ func (s *Server) Shutdown() error {
 
 // WaitForReport blocks until a /report call has been received or the
 // timeout elapses (timeout <= 0 means wait forever). Returns whether a
-// report was actually received, plus the ok/error counts from it.
-func (s *Server) WaitForReport(timeout time.Duration) (received bool, okCount, errorCount int) {
+// report was actually received, the ok/error counts from it (counting
+// only "ok"/"error" results; "planned" results from a preview report
+// count toward neither), and whether it was a preview report.
+func (s *Server) WaitForReport(timeout time.Duration) (received bool, okCount, errorCount int, preview bool) {
 	if timeout <= 0 {
 		outcome := <-s.done
-		return outcome.received, outcome.okCount, outcome.errorCount
+		return outcome.received, outcome.okCount, outcome.errorCount, outcome.preview
 	}
 	select {
 	case outcome := <-s.done:
-		return outcome.received, outcome.okCount, outcome.errorCount
+		return outcome.received, outcome.okCount, outcome.errorCount, outcome.preview
 	case <-time.After(timeout):
-		return false, 0, 0
+		return false, 0, 0, false
 	}
 }
 
+// setCORS scopes cross-origin access to the Marko extension's own fixed
+// origin. The extension id is pinned via the "key" field in
+// extension/chrome/manifest.json (see ExtensionID in autoopen.go), so
+// unlike an unpacked extension with a random per-install id, the CLI can
+// name this origin exactly instead of falling back to a wildcard.
 func setCORS(w http.ResponseWriter) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Origin", "chrome-extension://"+ExtensionID)
 }
 
 func writeJSON(w http.ResponseWriter, status int, v interface{}) {
@@ -190,6 +232,9 @@ func (s *Server) handleDiff(w http.ResponseWriter, r *http.Request) {
 	}
 
 	plan := diff.Diff(desired, req.ActualTree)
+	if s.OnDiff != nil {
+		s.OnDiff(plan)
+	}
 	writeJSON(w, http.StatusOK, DiffResponse{
 		GeneratedAt: plan.GeneratedAt,
 		Operations:  plan.Operations,
@@ -211,17 +256,23 @@ func (s *Server) handleReport(w http.ResponseWriter, r *http.Request) {
 
 	okCount, errorCount := 0, 0
 	for _, res := range req.Results {
-		if res.Status == "ok" {
+		switch res.Status {
+		case "ok":
 			okCount++
-		} else {
+		case "error":
 			errorCount++
+			// "planned" (preview mode) counts toward neither.
 		}
+	}
+
+	if s.OnReport != nil {
+		s.OnReport(req)
 	}
 
 	writeJSON(w, http.StatusOK, ReportResponse{Accepted: true, OKCount: okCount, ErrorCount: errorCount})
 
 	s.reportOnce.Do(func() {
-		s.done <- reportOutcome{okCount: okCount, errorCount: errorCount, received: true}
+		s.done <- reportOutcome{okCount: okCount, errorCount: errorCount, received: true, preview: req.Preview}
 	})
 }
 
