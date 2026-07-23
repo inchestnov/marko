@@ -15,7 +15,7 @@ var exportCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		pr, err := runPipeline()
 		if err != nil {
-			printFindingsToStderr(pr)
+			printFindingsToStderr(cmd.ErrOrStderr(), pr)
 			return err
 		}
 

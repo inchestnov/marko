@@ -23,7 +23,7 @@ var diffCmd = &cobra.Command{
 
 		pr, err := runPipeline()
 		if err != nil {
-			printFindingsToStderr(pr)
+			printFindingsToStderr(cmd.ErrOrStderr(), pr)
 			return err
 		}
 

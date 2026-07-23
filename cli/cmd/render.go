@@ -19,7 +19,7 @@ var renderCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		pr, err := runPipeline()
 		if err != nil {
-			printFindingsToStderr(pr)
+			printFindingsToStderr(cmd.ErrOrStderr(), pr)
 			return err
 		}
 
@@ -58,16 +58,16 @@ func init() {
 	rootCmd.AddCommand(renderCmd)
 }
 
-func printFindingsToStderr(pr *pipelineResult) {
+func printFindingsToStderr(w io.Writer, pr *pipelineResult) {
 	if pr == nil {
 		return
 	}
 	for _, f := range pr.Findings {
 		line := f.String()
 		if f.Severity == validator.SeverityWarning {
-			fmt.Fprintln(os.Stderr, "warning: "+line)
+			fmt.Fprintln(w, "warning: "+line)
 		} else {
-			fmt.Fprintln(os.Stderr, line)
+			fmt.Fprintln(w, line)
 		}
 	}
 }

@@ -3,7 +3,6 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 
 	"github.com/inchestnov/marko/cli/validator"
@@ -31,12 +30,13 @@ var validateCmd = &cobra.Command{
 			}
 			fmt.Fprintln(cmd.OutOrStdout(), string(data))
 		} else {
+			errOut := cmd.ErrOrStderr()
 			for _, f := range findings {
 				line := f.String()
 				if f.Severity == validator.SeverityWarning {
-					fmt.Fprintln(os.Stderr, "warning: "+line)
+					fmt.Fprintln(errOut, "warning: "+line)
 				} else {
-					fmt.Fprintln(os.Stderr, line)
+					fmt.Fprintln(errOut, line)
 				}
 			}
 			if !validator.HasErrors(findings) {
