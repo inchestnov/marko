@@ -67,13 +67,15 @@ One of `--browser` or `--bookmarks-file` is required — there is no default bro
 | `--preview` | off | Compute and print the plan without changing anything (dry run) |
 | `--browser` | — | `brave`, `chrome`, `chromium`, or `edge`; required unless `--bookmarks-file` is given |
 | `--bookmarks-file` | — | Explicit path to a `Bookmarks` file, overrides `--browser` |
-| `--force` | off | Write even if the browser looks like it's currently running for that profile (prints a warning instead of refusing) |
+| `--force` | off | Write even if the browser looks like it's currently running for that profile (prints a warning instead of refusing); ignored with `--preview`, which never writes |
 
 The target browser must be closed — it periodically flushes its own
 bookmark state back to disk and would otherwise overwrite Marko's
 change. A timestamped backup of the previous file is always written
 alongside it before anything is changed. Pass `--force` to write anyway;
-a warning is printed instead of refusing.
+a warning is printed instead of refusing. `--preview` never writes, so
+it runs regardless of whether the browser looks like it's running and
+doesn't need `--force`.
 
 ## Global flags
 

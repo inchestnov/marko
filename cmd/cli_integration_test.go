@@ -241,12 +241,29 @@ func TestCLI_SyncFileBridge_RefusesWhenBrowserRunning(t *testing.T) {
 	}
 	bookmarksPath := setUpFakeProfile(t, dir, true)
 
-	_, stderr, code := runCmd(t, dir, "sync", "--bookmarks-file", bookmarksPath, "--preview")
+	_, stderr, code := runCmd(t, dir, "sync", "--bookmarks-file", bookmarksPath)
 	if code != 1 {
 		t.Fatalf("expected exit 1 when the browser appears to be running, got %d (stderr: %s)", code, stderr)
 	}
 	if !strings.Contains(stderr, "--force") {
 		t.Fatalf("expected guidance to pass --force on stderr, got %q", stderr)
+	}
+}
+
+func TestCLI_SyncFileBridge_PreviewIgnoresBrowserRunning(t *testing.T) {
+	dir := t.TempDir()
+	valid := "version: \"1\"\ncollections:\n  personal:\n    root: other\n    bookmarks:\n      - name: Example\n        url: \"https://example.com\"\n"
+	if err := os.WriteFile(filepath.Join(dir, "marko.yaml"), []byte(valid), 0o644); err != nil {
+		t.Fatalf("writing marko.yaml: %v", err)
+	}
+	bookmarksPath := setUpFakeProfile(t, dir, true)
+
+	stdout, stderr, code := runCmd(t, dir, "sync", "--bookmarks-file", bookmarksPath, "--preview")
+	if code != 0 {
+		t.Fatalf("expected --preview to succeed without --force even when the browser appears to be running, got %d (stderr: %s)", code, stderr)
+	}
+	if !strings.Contains(stdout, "Preview complete") {
+		t.Fatalf("expected a preview to run to completion, got stdout %q", stdout)
 	}
 }
 

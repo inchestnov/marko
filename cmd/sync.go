@@ -37,7 +37,7 @@ var syncCmd = &cobra.Command{
 		}
 		fmt.Fprintf(out, "Bookmarks file: %s\n", path)
 
-		if browserfile.IsBrowserRunning(path) {
+		if !syncPreview && browserfile.IsBrowserRunning(path) {
 			if !syncForce {
 				return newExitError(1, fmt.Errorf(
 					"the browser appears to be running for this profile (found its SingletonLock) -- "+
@@ -92,7 +92,7 @@ var syncCmd = &cobra.Command{
 func init() {
 	syncCmd.Flags().StringVar(&syncBrowser, "browser", "", fmt.Sprintf("browser whose Bookmarks file to use (one of %v); either this or --bookmarks-file is required", browserfile.KnownBrowsers))
 	syncCmd.Flags().StringVar(&syncBookmarksFile, "bookmarks-file", "", "explicit path to a Bookmarks file, overriding --browser")
-	syncCmd.Flags().BoolVar(&syncForce, "force", false, "write even if the browser appears to be running for this profile (prints a warning instead of refusing)")
+	syncCmd.Flags().BoolVar(&syncForce, "force", false, "write even if the browser appears to be running for this profile (prints a warning instead of refusing); ignored with --preview, which never writes")
 	syncCmd.Flags().BoolVar(&syncPreview, "preview", false, "compute and log the plan without making any changes (dry run)")
 	rootCmd.AddCommand(syncCmd)
 }

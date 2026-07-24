@@ -27,13 +27,15 @@ categories of problem by not going through any browser extension API.
    on macOS,
    `~/Library/Application Support/BraveSoftware/Brave-Browser/Default/Bookmarks`
    for Brave).
-2. Refuses to proceed if the browser looks like it's currently running
-   for that profile (Chromium's `SingletonLock` file/symlink is present
-   next to the profile directory) — unless `--force` is passed, in which
-   case it prints a warning and proceeds. **The browser should be
-   closed**: Chromium periodically flushes its in-memory bookmark model
-   back to this file, which would silently overwrite Marko's changes if
-   the browser were left open.
+2. Unless `--preview` is set, refuses to proceed if the browser looks
+   like it's currently running for that profile (Chromium's
+   `SingletonLock` file/symlink is present next to the profile
+   directory) — unless `--force` is passed, in which case it prints a
+   warning and proceeds. **The browser should be closed**: Chromium
+   periodically flushes its in-memory bookmark model back to this file,
+   which would silently overwrite Marko's changes if the browser were
+   left open. This check is skipped entirely under `--preview` since it
+   never writes, so `--force` has nothing to do there.
 3. Parses the file (kept as a fully generic `map[string]interface{}` tree
    internally, so any field Marko doesn't explicitly model — Brave's
    `meta_info`, `date_last_used`, the entire `synced`/mobile-bookmarks
