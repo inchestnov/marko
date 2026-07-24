@@ -16,13 +16,9 @@ import (
 	"runtime"
 )
 
-// DefaultBrowser is the default `marko sync` uses when --browser isn't
-// passed. DefaultProfile is the only browser profile Marko supports --
-// there is no flag to override it.
-const (
-	DefaultBrowser = "brave"
-	DefaultProfile = "Default"
-)
+// DefaultProfile is the only browser profile Marko supports -- there is
+// no flag to override it.
+const DefaultProfile = "Default"
 
 // KnownBrowsers lists the --browser values LocateBookmarksFile understands.
 var KnownBrowsers = []string{"brave", "chrome", "chromium", "edge"}
@@ -83,13 +79,13 @@ func userDataDir(browser string) (string, error) {
 }
 
 // LocateBookmarksFile resolves the path to a Chromium-family browser's
-// Bookmarks file for the given browser name (see KnownBrowsers; "" means
-// DefaultBrowser), always under DefaultProfile -- Marko does not support
-// selecting a different browser profile. It does not check whether the
-// file exists.
+// Bookmarks file for the given browser name (see KnownBrowsers; browser
+// must be non-empty -- there is no default), always under DefaultProfile
+// -- Marko does not support selecting a different browser profile. It
+// does not check whether the file exists.
 func LocateBookmarksFile(browser string) (string, error) {
 	if browser == "" {
-		browser = DefaultBrowser
+		return "", fmt.Errorf("browserfile: no browser specified (known: %v)", KnownBrowsers)
 	}
 	dir, err := userDataDir(browser)
 	if err != nil {

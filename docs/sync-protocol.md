@@ -19,11 +19,12 @@ categories of problem by not going through any browser extension API.
 ## How it works
 
 1. Locates the browser's `Bookmarks` file: `--bookmarks-file <path>` if
-   given, else `--browser <name>` (`brave` by default — see
-   `browserfile.KnownBrowsers` for the full list: `brave`, `chrome`,
-   `chromium`, `edge`), always under that browser's `Default` profile
-   directory (there is no flag to select a different profile), resolved
-   to the OS-appropriate path (e.g. on macOS,
+   given, else `--browser <name>` (required if `--bookmarks-file` isn't
+   given — there is no default browser; see `browserfile.KnownBrowsers`
+   for the full list: `brave`, `chrome`, `chromium`, `edge`), always
+   under that browser's `Default` profile directory (there is no flag to
+   select a different profile), resolved to the OS-appropriate path (e.g.
+   on macOS,
    `~/Library/Application Support/BraveSoftware/Brave-Browser/Default/Bookmarks`
    for Brave).
 2. Refuses to proceed if the browser looks like it's currently running

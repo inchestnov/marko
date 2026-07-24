@@ -62,14 +62,16 @@ Runs the full pipeline (parse → resolve templates → validate → render) and
 The main command: diffs the desired state against your browser and imports it, by reading and writing the target browser's native `Bookmarks` file directly.
 
 ```bash
-marko sync --config marko.yaml --preview   # show the plan, change nothing
-marko sync --config marko.yaml             # apply it
+marko sync --config marko.yaml --browser chrome --preview   # show the plan, change nothing
+marko sync --config marko.yaml --browser chrome             # apply it
 ```
+
+One of `--browser` or `--bookmarks-file` is required — there is no default browser.
 
 | Flag | Default | Description |
 |---|---|---|
 | `--preview` | off | Compute and print the plan without changing anything (dry run) |
-| `--browser` | `brave` | `brave`, `chrome`, `chromium`, or `edge` |
+| `--browser` | — | `brave`, `chrome`, `chromium`, or `edge`; required unless `--bookmarks-file` is given |
 | `--bookmarks-file` | — | Explicit path to a `Bookmarks` file, overrides `--browser` |
 | `--force` | off | Write even if the browser looks like it's currently running for that profile (prints a warning instead of refusing) |
 

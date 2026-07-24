@@ -22,6 +22,11 @@ var syncCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		out := cmd.OutOrStdout()
 
+		if syncBookmarksFile == "" && syncBrowser == "" {
+			return newExitError(2, fmt.Errorf(
+				"either --browser or --bookmarks-file must be specified (known browsers: %v)", browserfile.KnownBrowsers))
+		}
+
 		path := syncBookmarksFile
 		if path == "" {
 			var err error
@@ -85,7 +90,7 @@ var syncCmd = &cobra.Command{
 }
 
 func init() {
-	syncCmd.Flags().StringVar(&syncBrowser, "browser", "", fmt.Sprintf("browser whose Bookmarks file to use (one of %v, default %q)", browserfile.KnownBrowsers, browserfile.DefaultBrowser))
+	syncCmd.Flags().StringVar(&syncBrowser, "browser", "", fmt.Sprintf("browser whose Bookmarks file to use (one of %v); either this or --bookmarks-file is required", browserfile.KnownBrowsers))
 	syncCmd.Flags().StringVar(&syncBookmarksFile, "bookmarks-file", "", "explicit path to a Bookmarks file, overriding --browser")
 	syncCmd.Flags().BoolVar(&syncForce, "force", false, "write even if the browser appears to be running for this profile (prints a warning instead of refusing)")
 	syncCmd.Flags().BoolVar(&syncPreview, "preview", false, "compute and log the plan without making any changes (dry run)")

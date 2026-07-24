@@ -291,8 +291,14 @@ func TestWrite_BackupCreatesRecoverableCopy(t *testing.T) {
 	}
 }
 
-func TestLocateBookmarksFile_DefaultsToBraveAndDefaultProfile(t *testing.T) {
-	path, err := LocateBookmarksFile("")
+func TestLocateBookmarksFile_RequiresBrowser(t *testing.T) {
+	if _, err := LocateBookmarksFile(""); err == nil {
+		t.Fatal("expected an error when no browser is specified")
+	}
+}
+
+func TestLocateBookmarksFile_UsesDefaultProfile(t *testing.T) {
+	path, err := LocateBookmarksFile("brave")
 	if err != nil {
 		t.Fatalf("LocateBookmarksFile: %v", err)
 	}
