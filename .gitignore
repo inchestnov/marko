@@ -1,5 +1,4 @@
-# --- Go (cli/) ---
-cli/marko
+# --- Go ---
 /marko
 /bin/
 *.exe

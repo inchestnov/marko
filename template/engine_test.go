@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/inchestnov/marko/cli/internal/model"
+	"github.com/inchestnov/marko/internal/model"
 )
 
 func newCfg() *model.Config {

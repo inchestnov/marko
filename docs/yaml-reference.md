@@ -2,7 +2,7 @@
 
 This is the complete field-by-field reference for `marko.yaml` and files
 under `templates/`. It mirrors the Go types in
-[`cli/internal/model/model.go`](../cli/internal/model/model.go), which is
+[`internal/model/model.go`](../internal/model/model.go), which is
 the single source of truth for the schema. For the *semantics* of
 templates (variable precedence, nesting, composition, inheritance), see
 [`docs/templates.md`](./templates.md). For the full binding contract
@@ -22,7 +22,7 @@ placeholder, which may appear in `Bookmark.name`, `Bookmark.url`,
 | `version` | string | yes | Schema version. Currently always `"1"`. |
 | `variables` | map of name -> [Variable](#variable) | no | Global variables with defaults, visible to collections directly and to templates under the rules in [templates.md](./templates.md#global-variables). |
 | `templates` | map of name -> [Template](#template) | no | The reusable template library. May also be split across files under `templates/` (or the directory passed via `--templates-dir`); all discovered files are merged with `marko.yaml`'s own `templates:` block. A template name declared twice (across files or within the same file) is a validation error (`E_DUPLICATE_TEMPLATE`). |
-| `collections` | map of name -> [Collection](#collection) | yes (non-empty) | Rendered in **YAML declaration order** — this is deterministic and is exactly the order collections appear in the merged document (`cli/internal/model/model.go`'s `CollectionMap` preserves key order via a custom `UnmarshalYAML`). |
+| `collections` | map of name -> [Collection](#collection) | yes (non-empty) | Rendered in **YAML declaration order** — this is deterministic and is exactly the order collections appear in the merged document (`internal/model/model.go`'s `CollectionMap` preserves key order via a custom `UnmarshalYAML`). |
 
 Example:
 

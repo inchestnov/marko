@@ -5,8 +5,8 @@ import (
 	"io"
 	"os"
 
-	"github.com/inchestnov/marko/cli/internal/bookmarktree"
-	"github.com/inchestnov/marko/cli/validator"
+	"github.com/inchestnov/marko/internal/bookmarktree"
+	"github.com/inchestnov/marko/validator"
 	"github.com/spf13/cobra"
 )
 

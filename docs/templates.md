@@ -12,7 +12,7 @@ For the field-by-field schema, see
 algorithm and variable-precedence rules, see
 [`docs/architecture.md`](./architecture.md) §4 — this guide explains the
 same rules in a more example-driven way and calls out where the real
-implementation (`cli/template/resolve.go`) is slightly broader than the
+implementation (`template/resolve.go`) is slightly broader than the
 architecture doc's literal prose.
 
 ## 1. A template with no variables
@@ -252,7 +252,7 @@ instead supplies `repo_org` explicitly (as `some-other-project` above,
 with `repo_org: some-org`), that explicit value wins outright — the
 default expression is simply never used for that variable. This
 "overrides visible to sibling defaults" behavior (implemented in
-`cli/template/resolve.go`'s `buildChildScope`) is slightly more specific
+`template/resolve.go`'s `buildChildScope`) is slightly more specific
 than a first read of `docs/architecture.md` §4.3 might suggest; it is
 the behavior the real CLI implements and the one to rely on.
 
@@ -279,7 +279,7 @@ any template) are:
   ```
 
 - Visible to a **template** in two ways, both implemented in
-  `cli/template/resolve.go`:
+  `template/resolve.go`:
   1. If the template declares its own `vars:` entry for that name with no
      default, the global default is used to seed it (this is the
      narrower rule `docs/architecture.md` §4.3 describes literally).

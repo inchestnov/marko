@@ -1,4 +1,4 @@
-module github.com/inchestnov/marko/cli
+module github.com/inchestnov/marko
 
 go 1.25.0
 

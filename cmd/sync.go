@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/inchestnov/marko/cli/browserfile"
-	"github.com/inchestnov/marko/cli/diff"
+	"github.com/inchestnov/marko/browserfile"
+	"github.com/inchestnov/marko/diff"
 	"github.com/spf13/cobra"
 )
 

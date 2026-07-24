@@ -1,6 +1,6 @@
 package diff
 
-import "github.com/inchestnov/marko/cli/internal/bookmarktree"
+import "github.com/inchestnov/marko/internal/bookmarktree"
 
 // pairing is a matched (desired, actual) node pair, or one side nil to
 // represent an unmatched node (CREATE when Actual == nil, DELETE when

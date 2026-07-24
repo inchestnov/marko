@@ -3,9 +3,9 @@ package renderer
 import (
 	"testing"
 
-	"github.com/inchestnov/marko/cli/internal/bookmarktree"
-	"github.com/inchestnov/marko/cli/internal/model"
-	"github.com/inchestnov/marko/cli/template"
+	"github.com/inchestnov/marko/internal/bookmarktree"
+	"github.com/inchestnov/marko/internal/model"
+	"github.com/inchestnov/marko/template"
 )
 
 func resolveOrFatal(t *testing.T, cfg *model.Config) *template.Result {

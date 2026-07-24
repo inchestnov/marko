@@ -15,22 +15,16 @@ extension involved.
 ## Install
 
 ```bash
-go install github.com/inchestnov/marko/cli@latest
+go install github.com/inchestnov/marko@latest
 ```
 
-This installs the binary as `cli` in `$(go env GOPATH)/bin` (Go names it
-after the module's directory, not the project). Rename it if you'd
-rather run it as `marko`:
-
-```bash
-mv "$(go env GOPATH)/bin/cli" "$(go env GOPATH)/bin/marko"
-```
+This installs the `marko` binary directly into `$(go env GOPATH)/bin`.
 
 ### Installation from source code
 
 ```bash
 git clone https://github.com/inchestnov/marko.git
-cd marko/cli
+cd marko
 go build -o marko .
 ```
 
@@ -90,7 +84,7 @@ marko.yaml>/templates`), `-v/--verbose`.
 ## Development
 
 ```bash
-cd cli && go build ./... && go vet ./... && gofmt -l . && go test ./...
+go build ./... && go vet ./... && gofmt -l . && go test ./...
 ```
 
 ## License

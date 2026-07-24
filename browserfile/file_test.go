@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/inchestnov/marko/cli/diff"
-	"github.com/inchestnov/marko/cli/internal/bookmarktree"
+	"github.com/inchestnov/marko/diff"
+	"github.com/inchestnov/marko/internal/bookmarktree"
 )
 
 // fixtureJSON mirrors the real shape observed from a live Brave profile

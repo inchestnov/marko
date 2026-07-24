@@ -3,7 +3,7 @@
 `marko sync` reads and writes the target browser's native `Bookmarks`
 file directly — no extension, no local server, no CORS. This document is
 the reference for that mechanism, implemented in
-[`cli/browserfile`](../cli/browserfile). For the diff/matching algorithm
+[`browserfile`](../browserfile). For the diff/matching algorithm
 itself, see [`docs/architecture.md`](./architecture.md) §7.
 
 An earlier version of Marko drove a Chrome extension over a local HTTP

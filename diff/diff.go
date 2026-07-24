@@ -7,7 +7,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/inchestnov/marko/cli/internal/bookmarktree"
+	"github.com/inchestnov/marko/internal/bookmarktree"
 )
 
 // OpType identifies the kind of atomic action an Operation represents.

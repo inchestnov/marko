@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/inchestnov/marko/cli/diff"
-	"github.com/inchestnov/marko/cli/internal/bookmarktree"
+	"github.com/inchestnov/marko/diff"
+	"github.com/inchestnov/marko/internal/bookmarktree"
 )
 
 // jsonRootKey maps Marko's logical root names ("bar"/"other", used

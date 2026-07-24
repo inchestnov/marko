@@ -3,13 +3,13 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/inchestnov/marko/cli/internal/bookmarktree"
-	"github.com/inchestnov/marko/cli/internal/fsutil"
-	"github.com/inchestnov/marko/cli/internal/model"
-	"github.com/inchestnov/marko/cli/parser"
-	"github.com/inchestnov/marko/cli/renderer"
-	"github.com/inchestnov/marko/cli/template"
-	"github.com/inchestnov/marko/cli/validator"
+	"github.com/inchestnov/marko/internal/bookmarktree"
+	"github.com/inchestnov/marko/internal/fsutil"
+	"github.com/inchestnov/marko/internal/model"
+	"github.com/inchestnov/marko/parser"
+	"github.com/inchestnov/marko/renderer"
+	"github.com/inchestnov/marko/template"
+	"github.com/inchestnov/marko/validator"
 )
 
 // resolveConfigPath applies the --config global flag, defaulting to

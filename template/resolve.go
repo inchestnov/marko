@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/inchestnov/marko/cli/internal/model"
+	"github.com/inchestnov/marko/internal/model"
 )
 
 // ResolvedBookmark is a bookmark with all placeholders substituted to

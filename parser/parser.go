@@ -8,8 +8,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/inchestnov/marko/cli/internal/fsutil"
-	"github.com/inchestnov/marko/cli/internal/model"
+	"github.com/inchestnov/marko/internal/fsutil"
+	"github.com/inchestnov/marko/internal/model"
 	"gopkg.in/yaml.v3"
 )
 

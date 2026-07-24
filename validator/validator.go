@@ -9,8 +9,8 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/inchestnov/marko/cli/internal/model"
-	"github.com/inchestnov/marko/cli/template"
+	"github.com/inchestnov/marko/internal/model"
+	"github.com/inchestnov/marko/template"
 )
 
 // Severity distinguishes fatal errors ("E_*") from non-fatal warnings

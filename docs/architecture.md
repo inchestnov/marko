@@ -33,7 +33,7 @@ Design principles:
 
 - No browser extension, no native messaging host, no local server. `marko
   sync` reads and writes the target browser's native `Bookmarks` file
-  directly (see `cli/browserfile` and `docs/sync-protocol.md`) — an
+  directly (see `browserfile` and `docs/sync-protocol.md`) — an
   earlier iteration drove a Chrome extension over a local HTTP bridge
   instead, but that approach was dropped after real-world testing
   surfaced problems inherent to going through a browser extension at all
@@ -51,48 +51,47 @@ This is the concrete layout the Project Bootstrap Agent must create.
 
 ```
 marko/
-├── cli/
-│   ├── cmd/                     # Cobra command definitions (one file per command)
-│   │   ├── root.go
-│   │   ├── init.go
-│   │   ├── validate.go
-│   │   ├── render.go
-│   │   ├── diff.go
-│   │   └── sync.go
-│   ├── internal/
-│   │   ├── model/               # Shared data model structs (Config, Collection, Template, ...)
-│   │   │   └── model.go
-│   │   ├── bookmarktree/        # BookmarkTree struct + helpers (path resolution, walking)
-│   │   │   └── tree.go
-│   │   ├── fsutil/              # File discovery helpers (find marko.yaml, templates/*.yaml)
-│   │   │   └── fsutil.go
-│   │   └── version/
-│   │       └── version.go
-│   ├── parser/                  # YAML loading -> raw model.Config
-│   │   ├── parser.go
-│   │   └── parser_test.go
-│   ├── validator/                # Static validation of resolved config
-│   │   ├── validator.go
-│   │   └── validator_test.go
-│   ├── template/                 # Template resolution engine (nesting, vars, composition)
-│   │   ├── engine.go
-│   │   ├── resolve.go
-│   │   └── engine_test.go
-│   ├── renderer/                 # Resolved config -> BookmarkTree
-│   │   ├── renderer.go
-│   │   └── renderer_test.go
-│   ├── diff/                     # BookmarkTree vs BookmarkTree -> []Operation
-│   │   ├── diff.go
-│   │   ├── match.go
-│   │   └── diff_test.go
-│   ├── browserfile/               # Reads/writes a Chromium-family browser's Bookmarks file directly
-│   │   ├── paths.go               # Locates the file per browser/profile/OS
-│   │   ├── lock.go                # Detects whether the browser is running (SingletonLock)
-│   │   ├── file.go                # Parse / ToBookmarkTree / Apply(diff.Plan) / Write
-│   │   └── file_test.go
-│   ├── go.mod
-│   ├── go.sum
-│   └── main.go
+├── cmd/                     # Cobra command definitions (one file per command)
+│   ├── root.go
+│   ├── init.go
+│   ├── validate.go
+│   ├── render.go
+│   ├── diff.go
+│   └── sync.go
+├── internal/
+│   ├── model/               # Shared data model structs (Config, Collection, Template, ...)
+│   │   └── model.go
+│   ├── bookmarktree/        # BookmarkTree struct + helpers (path resolution, walking)
+│   │   └── tree.go
+│   ├── fsutil/              # File discovery helpers (find marko.yaml, templates/*.yaml)
+│   │   └── fsutil.go
+│   └── version/
+│       └── version.go
+├── parser/                  # YAML loading -> raw model.Config
+│   ├── parser.go
+│   └── parser_test.go
+├── validator/                # Static validation of resolved config
+│   ├── validator.go
+│   └── validator_test.go
+├── template/                 # Template resolution engine (nesting, vars, composition)
+│   ├── engine.go
+│   ├── resolve.go
+│   └── engine_test.go
+├── renderer/                 # Resolved config -> BookmarkTree
+│   ├── renderer.go
+│   └── renderer_test.go
+├── diff/                     # BookmarkTree vs BookmarkTree -> []Operation
+│   ├── diff.go
+│   ├── match.go
+│   └── diff_test.go
+├── browserfile/               # Reads/writes a Chromium-family browser's Bookmarks file directly
+│   ├── paths.go               # Locates the file per browser/profile/OS
+│   ├── lock.go                # Detects whether the browser is running (SingletonLock)
+│   ├── file.go                # Parse / ToBookmarkTree / Apply(diff.Plan) / Write
+│   └── file_test.go
+├── go.mod
+├── go.sum
+├── main.go
 ├── templates/                     # Shared/example reusable template library (see §3)
 │   ├── profile.yaml
 │   ├── github.yaml
@@ -112,7 +111,7 @@ marko/
 
 Module boundary rules (must be enforced by import direction, no cycles):
 
-- `internal/model` has zero dependencies on other `cli/*` packages.
+- `internal/model` has zero dependencies on other `*` packages.
 - `parser` depends only on `internal/model`.
 - `template` depends only on `internal/model`.
 - `validator` depends only on `internal/model` and `template` (to validate
@@ -126,7 +125,7 @@ Module boundary rules (must be enforced by import direction, no cycles):
 
 ## 3. Data Model
 
-All Go types below live in `cli/internal/model/model.go` unless noted.
+All Go types below live in `internal/model/model.go` unless noted.
 
 ### 3.1 Go Structs
 
@@ -370,7 +369,7 @@ template names across files/`marko.yaml` are a validation error (see §5).
 
 ## 4. Template Engine Semantics
 
-Implemented in `cli/template/engine.go` and `resolve.go`. Input: `model.Config`
+Implemented in `template/engine.go` and `resolve.go`. Input: `model.Config`
 (raw, as parsed). Output: a `ResolvedCollection` tree per collection, where
 every `TemplateRef` has been fully expanded and every variable placeholder
 has been substituted with a literal string. No `TemplateRef` or `{{ }}`
@@ -522,7 +521,7 @@ resolved before any instantiation).
 
 ## 5. Validation Rules
 
-Implemented in `cli/validator/validator.go`. Validation runs in two
+Implemented in `validator/validator.go`. Validation runs in two
 phases: **Phase A - Structural** (on raw `model.Config`, before
 resolution) and **Phase B - Semantic** (on the resolved tree, after the
 template engine runs but before rendering). `marko validate` runs both
@@ -575,10 +574,10 @@ not affect the exit code.
 
 ## 6. Render Engine
 
-Implemented in `cli/renderer/renderer.go`. Input: the resolved
+Implemented in `renderer/renderer.go`. Input: the resolved
 per-collection tree from the template engine (§4) after Phase B
 validation passes. Output: a single in-memory `BookmarkTree`
-(`cli/internal/bookmarktree/tree.go`) representing the full desired
+(`internal/bookmarktree/tree.go`) representing the full desired
 state across all collections.
 
 ```go
@@ -693,9 +692,9 @@ part of node identity/matching.
 
 ## 7. Diff Engine
 
-Implemented in `cli/diff/diff.go` and `match.go`. Input: two
+Implemented in `diff/diff.go` and `match.go`. Input: two
 `*bookmarktree.BookmarkTree` values — `desired` (from the renderer) and
-`actual` (read from the browser's Bookmarks file by `cli/browserfile`,
+`actual` (read from the browser's Bookmarks file by `browserfile`,
 with `BrowserID` populated on every node from the file's real `id`
 fields). Output: `Plan` — an ordered `[]Operation`. The engine itself has
 no notion of where `actual` came from; it just diffs two trees.
@@ -854,7 +853,7 @@ ids for not-yet-created nodes in advance).
 
 ## 8. Browser Bridge: direct Bookmarks file access
 
-`marko sync` (`cli/browserfile`) reads and writes the target browser's
+`marko sync` (`browserfile`) reads and writes the target browser's
 native `Bookmarks` file directly. There is no browser extension, no
 local server, and no wire protocol — the "bridge" is filesystem I/O.
 (An earlier iteration drove a Chrome extension over a local HTTP bridge
@@ -871,7 +870,7 @@ browser's default profile directory (`Default` — there is no flag to
 select a different profile), resolved to the OS-appropriate path (e.g.
 on macOS,
 `~/Library/Application Support/BraveSoftware/Brave-Browser/Default/Bookmarks`
-for Brave; see `cli/browserfile/paths.go` for the full per-OS table).
+for Brave; see `browserfile/paths.go` for the full per-OS table).
 
 ### 8.2 Safety: is the browser running?
 
@@ -1017,7 +1016,7 @@ Exit `1` if validation fails first (render always validates internally).
 
 ### 9.4 `marko sync`
 Reads and writes the target browser's native `Bookmarks` file directly
-(`cli/browserfile`, §8) — no extension, no server. Flags: `--browser
+(`browserfile`, §8) — no extension, no server. Flags: `--browser
 <name>` (default `brave`; also `chrome`, `chromium`, `edge`),
 `--bookmarks-file <path>` (explicit override, skips `--browser` lookup),
 `--force` (write even if the browser looks like it's running for that
@@ -1047,32 +1046,32 @@ Restart the browser (if it was already closed, just open it) to see the change.
 
 ### 10.1 Unit tests (Go, standard `testing` package, table-driven)
 
-- `cli/parser`: valid minimal YAML parses to expected `model.Config`;
+- `parser`: valid minimal YAML parses to expected `model.Config`;
   malformed YAML returns a wrapped error with line/column; multiple
   `templates/*.yaml` files merge correctly; duplicate template name
   across files is caught (or surfaced for validator to catch — parser
   vs validator boundary must be tested explicitly for this case).
-- `cli/template`: variable substitution (simple case, missing variable,
+- `template`: variable substitution (simple case, missing variable,
   disallowed syntax rejected); nested template flattening (folder-less)
   vs nesting (with folder); `as:` rename; inheritance merge order;
   `extends` cycle detection with exact cycle path in error; nested
   `TemplateRef` cycle detection; variable precedence order (all 4
   levels from §4.3, each overriding the next).
-- `cli/validator`: one test per row in §5.1 and §5.2 tables, each
+- `validator`: one test per row in §5.1 and §5.2 tables, each
   asserting exact error code and that message contains the expected
   location string.
-- `cli/renderer`: ordering rule (§6.2) with a fixture mixing bookmarks +
+- `renderer`: ordering rule (§6.2) with a fixture mixing bookmarks +
   inline folders + templates at the same level; duplicate-named sibling
   folder merge; duplicate bookmark dedup vs `E_DUPLICATE_SIBLING` on
   differing URL (renderer relies on validator having already rejected
   this, but renderer should defensively test it doesn't panic).
-- `cli/diff`: each of exact-match, rename-match, URL-match, CREATE
+- `diff`: each of exact-match, rename-match, URL-match, CREATE
   (no actual match), DELETE (no desired match), MOVE (parent change),
   MOVE (position change), UPDATE (name/url change), MOVE+UPDATE combined
   on the same node; recursive-delete (folder DELETE doesn't also emit
   child DELETEs); operation ordering (§7.3) asserted on a fixture
   requiring all four op types simultaneously.
-- `cli/browserfile`: parses a fixture Chromium `Bookmarks` file (with a
+- `browserfile`: parses a fixture Chromium `Bookmarks` file (with a
   non-standard root id and unknown per-node fields, mirroring real-world
   data observed during development), converts it to a `BookmarkTree`,
   applies a plan covering CREATE/UPDATE/DELETE/MOVE, writes it back, and
@@ -1085,8 +1084,8 @@ Restart the browser (if it was already closed, just open it) to see the change.
 
 ### 10.2 Integration test
 
-Location: `cli/renderer` + `cli/diff` combined test, or a dedicated
-`cli/internal/integration_test.go` (build-tagged `integration` if it
+Location: `renderer` + `diff` combined test, or a dedicated
+`internal/integration_test.go` (build-tagged `integration` if it
 needs to shell out to the built binary; otherwise a plain Go test calling
 package functions directly is preferred and sufficient — no actual Chrome
 browser is driven in CI).
@@ -1103,7 +1102,7 @@ Scenario, asserting each stage's output feeds the next correctly:
    dependency order (a parent's CREATE never appears after its child's).
 5. Simulate "apply": a small in-memory fake of the mutation target
    (a Go struct implementing create/update/remove/move against a mutable
-   tree, the same shape `cli/browserfile` mutates for real) applies the
+   tree, the same shape `browserfile` mutates for real) applies the
    `Plan` op-by-op; assert the resulting tree exactly equals the desired
    tree (structural equality, ignoring `BrowserID`/`Index` bookkeeping
    fields).
@@ -1115,7 +1114,7 @@ Scenario, asserting each stage's output feeds the next correctly:
 - Only Chromium-family browsers (Brave, Chrome, Chromium, Edge — anything
   that uses the same `Bookmarks` JSON file format) are supported.
   Firefox uses a completely different (SQLite-based) storage format and
-  would need its own `cli/browserfile` implementation; none exists yet.
+  would need its own `browserfile` implementation; none exists yet.
 - No cloud sync, no multi-device sync, no remote storage of
   `marko.yaml` or bookmark state — everything is local-file and
   local-browser only.

@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/inchestnov/marko/cli/internal/version"
+	"github.com/inchestnov/marko/internal/version"
 	"github.com/spf13/cobra"
 )
 

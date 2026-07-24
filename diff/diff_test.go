@@ -3,7 +3,7 @@ package diff
 import (
 	"testing"
 
-	"github.com/inchestnov/marko/cli/internal/bookmarktree"
+	"github.com/inchestnov/marko/internal/bookmarktree"
 )
 
 func emptyTree() *bookmarktree.BookmarkTree {

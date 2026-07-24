@@ -8,12 +8,12 @@ package integration
 import (
 	"testing"
 
-	"github.com/inchestnov/marko/cli/diff"
-	"github.com/inchestnov/marko/cli/internal/bookmarktree"
-	"github.com/inchestnov/marko/cli/parser"
-	"github.com/inchestnov/marko/cli/renderer"
-	"github.com/inchestnov/marko/cli/template"
-	"github.com/inchestnov/marko/cli/validator"
+	"github.com/inchestnov/marko/diff"
+	"github.com/inchestnov/marko/internal/bookmarktree"
+	"github.com/inchestnov/marko/parser"
+	"github.com/inchestnov/marko/renderer"
+	"github.com/inchestnov/marko/template"
+	"github.com/inchestnov/marko/validator"
 )
 
 func TestFullPipeline_ParseResolveRenderDiffApplyIdempotent(t *testing.T) {
