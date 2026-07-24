@@ -260,7 +260,7 @@ func validateBookmark(b model.Bookmark, loc string) []Finding {
 	} else if !containsPlaceholder(b.URL) {
 		if !isValidBookmarkURL(b.URL) {
 			findings = append(findings, errF(CodeInvalidURL,
-				fmt.Sprintf("invalid url %q: must be an absolute http://, https://, or chrome:// URL", b.URL), loc+".url"))
+				fmt.Sprintf("invalid url %q: must be an absolute http://, https://, file://, or chrome:// URL", b.URL), loc+".url"))
 		}
 	}
 	return findings
@@ -280,8 +280,10 @@ func isValidBookmarkURL(s string) bool {
 		return false
 	}
 	switch u.Scheme {
-	case "http", "https", "chrome":
-		return u.Scheme == "chrome" || u.Host != ""
+	case "http", "https":
+		return u.Host != ""
+	case "chrome", "file":
+		return true
 	default:
 		return false
 	}

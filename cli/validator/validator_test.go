@@ -118,7 +118,7 @@ func TestPhaseA_InvalidURL(t *testing.T) {
 }
 
 func TestPhaseA_ValidURLSchemes(t *testing.T) {
-	cases := []string{"http://example.com", "https://example.com", "chrome://bookmarks"}
+	cases := []string{"http://example.com", "https://example.com", "chrome://bookmarks", "file:///Users/me/notes.pdf"}
 	for _, u := range cases {
 		t.Run(u, func(t *testing.T) {
 			cfg := newCfg()
